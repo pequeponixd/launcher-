@@ -96,7 +96,7 @@ async function download(url, dest, onChunk) {
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: { 'accept-encoding': 'identity' } });
       if (!res.ok) throw new Error(`HTTP ${res.status} → ${url}`);
       await fsp.mkdir(path.dirname(dest), { recursive: true });
       const tmp = dest + '.part';
@@ -161,24 +161,47 @@ async function ensureJava(mc) {
   const arch = process.arch === 'arm64' ? 'aarch64' : 'x64';
   const isWin = osName === 'windows';
   const archive = path.join(ROOT, 'runtime', `java${major}.${isWin ? 'zip' : 'tar.gz'}`);
-  const url = `https://api.adoptium.net/v3/binary/latest/${major}/ga/${osName}/${arch}/jre/hotspot/normal/eclipse`;
-
+  // Datos oficiales del paquete: enlace, tamaño y checksum SHA-256
   status('java.download', { major }, 0);
-  let got = 0;
-  await download(url, archive, (n) => {
-    got += n;
-    status('java.download.mb', { major, mb: (got / 1048576).toFixed(0) }, null);
-  });
+  const info = await getJson(
+    `https://api.adoptium.net/v3/assets/latest/${major}/hotspot?architecture=${arch}&image_type=jre&os=${osName}&vendor=eclipse`
+  );
+  const pkg = info && info[0] && info[0].binary && info[0].binary.package;
+  if (!pkg) throw new Error(`Adoptium no tiene Java ${major} para ${osName}/${arch}`);
+  logLine(`java: ${pkg.link} (${pkg.size} bytes, sha256 ${pkg.checksum})`);
+
+  const sha256 = (file) =>
+    new Promise((resolve, reject) => {
+      const h = crypto.createHash('sha256');
+      fs.createReadStream(file).on('data', (c) => h.update(c)).on('end', () => resolve(h.digest('hex'))).on('error', reject);
+    });
+
+  let ok = false;
+  for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+    let got = 0;
+    await download(pkg.link, archive, (n) => {
+      got += n;
+      status('java.download.mb', { major, mb: (got / 1048576).toFixed(0) }, null);
+    });
+    const real = await sha256(archive);
+    const st = await fsp.stat(archive);
+    const head = (await fsp.readFile(archive)).subarray(0, 8).toString('hex');
+    logLine(`java intento ${attempt}: ${st.size} bytes, sha256 ${real}, inicio ${head}`);
+    ok = real === pkg.checksum.toLowerCase();
+    if (!ok) await fsp.rm(archive, { force: true });
+  }
+  if (!ok) throw new Error('El Java se descarga dañado una y otra vez (no coincide con el checksum oficial). Revisa tu conexión, VPN o antivirus/proxy, y mira launcher.log.');
+
   status('java.install', {}, null);
   await fsp.rm(dir, { recursive: true, force: true });
   await fsp.mkdir(dir, { recursive: true });
   try {
     if (isWin) await extract(archive, { dir });
-    else await tar.x({ file: archive, cwd: dir });
+    else await run('tar', ['-xzf', archive, '-C', dir]); // tar del sistema, más fiable que la librería
   } catch (e) {
     await fsp.rm(archive, { force: true });
     await fsp.rm(dir, { recursive: true, force: true });
-    throw new Error(`El Java descargado estaba dañado (${errText(e)}). Se borró; vuelve a darle Play para descargarlo otra vez.`);
+    throw new Error(`No se pudo descomprimir Java (${errText(e)}).`);
   }
   await fsp.rm(archive, { force: true });
 
