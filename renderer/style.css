@@ -158,3 +158,113 @@ select {
 .dialog .actions .primary { background: var(--accent); color: #04121f; font-weight: 600; }
 .dialog .actions .danger { background: #5a1a22; }
 .dialog .err { margin: 10px 0 0; }
+
+/* =====================================================================
+   Animaciones y transiciones
+   ===================================================================== */
+@keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes screenIn { from { opacity: 0; transform: scale(1.015); } to { opacity: 1; transform: none; } }
+@keyframes rise     { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes slideInL { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+@keyframes pop      { from { opacity: 0; transform: translateY(10px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes heroIn   { from { opacity: 0; transform: translateY(22px) scale(.97); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes bgIn     { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kenburns { from { transform: scale(1); } to { transform: scale(1.07) translate(-1%, -1%); } }
+@keyframes float    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes ringGlow { 0%, 100% { border-color: #0d0d0d; } 50% { border-color: #1b1b21; } }
+@keyframes redGlow  { 0%, 100% { text-shadow: 0 0 0 rgba(224, 17, 43, 0); } 50% { text-shadow: 0 0 22px rgba(224, 17, 43, .55); } }
+@keyframes playPulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 16px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes runningPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(60, 200, 120, .45); }
+  50%      { box-shadow: 0 0 0 10px rgba(60, 200, 120, 0); }
+}
+@keyframes shimmer  { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes shine    { from { transform: translateX(-130%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
+@keyframes shake    { 0%, 100% { transform: none; } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+/* Entrada de pantallas (al pasar del login al launcher y al revés) */
+.screen:not(.hidden) { animation: screenIn .5s cubic-bezier(.2, .8, .2, 1); }
+
+/* Login */
+.ring { animation: ringGlow 6s ease-in-out infinite; }
+.login-box h1 em { animation: redGlow 3.5s ease-in-out infinite; }
+.login-box > * { animation: rise .6s cubic-bezier(.2, .8, .2, 1) both; }
+.login-box > :nth-child(1) { animation-delay: .05s; }
+.login-box > :nth-child(2) { animation-delay: .12s; }
+.login-box > :nth-child(3) { animation-delay: .20s; }
+.login-box > :nth-child(4) { animation-delay: .27s; }
+.login-box > :nth-child(5) { animation-delay: .32s; }
+.login-box > :nth-child(6) { animation-delay: .37s; }
+.login-box > :nth-child(7) { animation-delay: .42s; }
+#offline-form:not(.hidden) { animation: rise .35s cubic-bezier(.2, .8, .2, 1); }
+.err:not(:empty) { animation: shake .35s; }
+.btn-red, .btn-ghost, select, input { transition: filter .15s, transform .12s, background .15s, border-color .2s, box-shadow .2s; }
+#offline-form input:focus { box-shadow: 0 0 0 3px rgba(224, 17, 43, .25); }
+
+/* Barra lateral */
+.pack.enter { animation: slideInL .45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 60ms + 150ms); }
+.pack { transition: border-radius .25s cubic-bezier(.2, .8, .2, 1), transform .2s, box-shadow .25s, border-color .2s; }
+.pack:hover { transform: translateY(-2px) scale(1.07); }
+.pack:active { transform: scale(.94); }
+.pack.active { box-shadow: 0 0 0 3px rgba(255, 255, 255, .1), 0 0 20px color-mix(in srgb, var(--accent) 55%, transparent); }
+.round:active { transform: scale(.92); }
+.plus { transition: border-color .15s, transform .25s cubic-bezier(.2, .8, .2, 1), color .15s; }
+.plus:hover { transform: rotate(90deg) scale(1.08); }
+
+/* Escenario: al cambiar de modpack se re-lanza .swap */
+.stage-bg { animation: kenburns 40s ease-in-out infinite alternate; }
+.stage.swap .stage-bg { animation: bgIn .7s ease-out, kenburns 40s ease-in-out infinite alternate; }
+.stage.swap .hero { animation: heroIn .6s cubic-bezier(.2, .8, .2, 1) both; }
+.stage.swap .hero #hero-desc { animation: rise .6s .12s cubic-bezier(.2, .8, .2, 1) both; }
+.stage.swap .hero .meta { animation: rise .6s .2s cubic-bezier(.2, .8, .2, 1) both; }
+.hero img { animation: float 6s ease-in-out infinite; }
+.bottom { animation: rise .7s .25s cubic-bezier(.2, .8, .2, 1) both; }
+
+.gear { transition: transform .35s cubic-bezier(.2, .8, .2, 1), opacity .15s, background .15s; }
+.gear:hover { transform: rotate(75deg); }
+
+/* Botón Play */
+.play { position: relative; overflow: hidden; transition: background .2s, transform .12s, box-shadow .2s, letter-spacing .25s; }
+.play:not(:disabled):not(.running) { animation: playPulse 2.6s ease-out infinite; }
+.play:hover:not(:disabled) { letter-spacing: 1.5px; }
+.play::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .28), transparent);
+  transform: translateX(-130%) skewX(-20deg); pointer-events: none;
+}
+.play:hover:not(:disabled)::after { animation: shine .8s ease; }
+.play.running { animation: runningPulse 2s ease-in-out infinite; }
+
+/* Progreso */
+.progress:not(.hidden) { animation: rise .35s cubic-bezier(.2, .8, .2, 1); }
+.fill {
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #fff), var(--accent));
+  background-size: 200% 100%; animation: shimmer 1.6s linear infinite; transition: width .35s ease;
+}
+
+/* Menús y diálogos */
+.popup:not(.hidden) { animation: pop .2s cubic-bezier(.2, .9, .3, 1.15); transform-origin: left bottom; }
+.modal:not(.hidden) { animation: fadeIn .2s ease-out; }
+.modal:not(.hidden) .dialog { animation: pop .28s cubic-bezier(.2, .9, .3, 1.15); }
+.popup .acc, .popup .item, .dialog .actions button { transition: background .15s, transform .1s; }
+.dialog .actions button:active, .popup .item:active { transform: scale(.97); }
+
+/* Interruptor de sonido (ajustes) */
+.switch { position: relative; width: 44px; height: 24px; display: inline-block; cursor: pointer; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider { position: absolute; inset: 0; background: #2a2d37; border-radius: 24px; transition: background .2s; }
+.switch .slider::before {
+  content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; border-radius: 50%;
+  background: #fff; transition: transform .25s cubic-bezier(.2, .9, .3, 1.2);
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+
+/* Si el sistema pide menos movimiento, se apagan las animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

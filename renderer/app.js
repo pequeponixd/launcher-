@@ -35,6 +35,7 @@ const T = {
     invalidName: 'El nombre debe tener 3–16 caracteres: letras, números o guion bajo.',
     emptyTitle: 'Agrega un modpack', emptySub: 'Pulsa + para agregar tu primer modpack.',
     offlinePack: 'Sin conexión: usando datos guardados', logout: 'Quitar cuenta',
+    sound: 'Sonidos', volume: 'Volumen',
   },
   en: {
     'login.title1': 'PLEASE', 'login.title2': 'LOG-IN', 'login.title3': 'WITH YOUR ACCOUNT',
@@ -68,6 +69,7 @@ const T = {
     invalidName: 'Name must be 3–16 characters: letters, numbers or underscore.',
     emptyTitle: 'Add a modpack', emptySub: 'Press + to add your first modpack.',
     offlinePack: 'Offline: using saved data', logout: 'Remove account',
+    sound: 'Sounds', volume: 'Volume',
   },
 };
 
@@ -104,12 +106,24 @@ function show() {
   }
 }
 
+// reinicia una animación CSS (quita la clase, fuerza el reflow y la vuelve a poner)
+function retrigger(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
+let railAnimated = false; // los iconos de la barra solo "entran" la primera vez
+let lastStagePack = null;
+let prevGameState = 'idle';
+
 function renderRail() {
   const box = $('packs');
   box.innerHTML = '';
-  for (const p of S.packs) {
+  for (const [i, p] of S.packs.entries()) {
     const b = document.createElement('button');
-    b.className = 'pack' + (p.id === curPack()?.id ? ' active' : '') + (p.offline ? ' offline' : '');
+    b.className = 'pack' + (p.id === curPack()?.id ? ' active' : '') + (p.offline ? ' offline' : '') + (railAnimated ? '' : ' enter');
+    b.style.setProperty('--i', i);
     b.title = p.name + (p.offline ? ` — ${t('offlinePack')}` : '');
     if (p.icon) {
       const im = document.createElement('img');
@@ -126,6 +140,7 @@ function renderRail() {
     };
     box.appendChild(b);
   }
+  railAnimated = true;
   const a = curAcc();
   const av = $('avatar');
   av.onerror = () => { av.onerror = null; av.src = STEVE; };
@@ -135,6 +150,11 @@ function renderRail() {
 function renderStage() {
   const p = curPack();
   const bg = $('stage-bg');
+  const stagePackId = p ? p.id : null;
+  if (stagePackId !== lastStagePack) {
+    lastStagePack = stagePackId;
+    retrigger($('stage'), 'swap'); // transición al cambiar de modpack
+  }
   if (p?.accent) document.documentElement.style.setProperty('--accent', p.accent);
   else document.documentElement.style.removeProperty('--accent');
   bg.style.background = p?.background ? `url("${p.background}") center/cover no-repeat, #05060a` : '';
@@ -161,6 +181,7 @@ api.onStatus(({ key, params, percent }) => {
   const prog = $('progress');
   prog.classList.remove('hidden');
   $('status').textContent = t(key, params);
+  if (key === 'game.crashed') sfx.error();
   const f = $('fill');
   f.classList.toggle('indeterminate', percent == null);
   if (percent != null) f.style.width = Math.max(0, Math.min(100, percent)) + '%';
@@ -168,6 +189,8 @@ api.onStatus(({ key, params, percent }) => {
 
 api.onGameState((st) => {
   busy = st !== 'idle';
+  if (st === 'running' && prevGameState !== 'running') sfx.success();
+  prevGameState = st;
   const btn = $('btn-play');
   btn.disabled = busy || !curPack();
   btn.classList.toggle('running', st === 'running');
@@ -178,12 +201,14 @@ api.onGameState((st) => {
 $('btn-play').onclick = async () => {
   const p = curPack();
   if (!p || busy) return;
+  sfx.play();
   const r = await api.play(p.id);
   if (!r.ok) showError(msg(r.error));
 };
 
 /* ------------------------------------------------------------ login */
 async function afterLogin() {
+  sfx.success();
   S = await api.getState();
   show();
 }
@@ -270,6 +295,7 @@ function openAccountMenu() {
     $('d-nick').onkeydown = (e) => e.key === 'Enter' && go();
   };
   menu.classList.remove('hidden');
+  sfx.open();
 }
 $('btn-account').onclick = (e) => {
   e.stopPropagation();
@@ -280,9 +306,14 @@ document.addEventListener('click', (e) => { if (!menu.contains(e.target)) menu.c
 /* ------------------------------------------------------------ diálogos */
 function dialog(html) {
   $('dialog').innerHTML = html;
+  if ($('modal').classList.contains('hidden')) sfx.open();
   $('modal').classList.remove('hidden');
 }
-function closeDialog() { $('modal').classList.add('hidden'); }
+function closeDialog() {
+  if ($('modal').classList.contains('hidden')) return;
+  sfx.close();
+  $('modal').classList.add('hidden');
+}
 $('modal').onclick = (e) => { if (e.target === $('modal')) closeDialog(); };
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDialog(); });
 
@@ -291,6 +322,7 @@ function showError(text) {
     <div class="actions"><button id="d-log">${t('openLog')}</button><button class="primary" id="d-ok">${t('close')}</button></div>`);
   $('d-ok').onclick = closeDialog;
   $('d-log').onclick = () => api.openLog();
+  sfx.error();
 }
 
 $('btn-add').onclick = () => {
@@ -323,12 +355,20 @@ $('btn-settings').onclick = async () => {
     <div class="row"><span>${t('ram')}</span><b id="ram-val">${S.settings.ramGb} GB</b></div>
     <input type="range" id="ram" min="2" max="${max}" step="1" value="${Math.min(S.settings.ramGb, max)}">
     <div class="row"><span>${t('lang')}</span><select id="d-lang"><option value="es">Español</option><option value="en">English</option></select></div>
+    <div class="row"><span>${t('sound')}</span><label class="switch"><input type="checkbox" id="sfx-on"><span class="slider"></span></label></div>
+    <div class="row"><span>${t('volume')}</span><b id="sfx-val">${Math.round(sfx.getVol() * 100)}%</b></div>
+    <input type="range" id="sfx-vol" min="0" max="100" step="5" value="${Math.round(sfx.getVol() * 100)}">
     <div class="actions" style="justify-content:flex-start">
       <button id="d-folder">${t('openFolder')}</button><button id="d-log">${t('openLog')}</button>
       ${p ? `<button class="danger" id="d-remove">${t('removePack')}</button>` : ''}
     </div>
     <div class="actions"><button class="primary" id="d-ok">${t('close')}</button></div>`);
   $('d-lang').value = lang;
+  $('sfx-on').checked = sfx.isOn();
+  $('sfx-vol').disabled = !sfx.isOn();
+  $('sfx-on').onchange = (e) => { sfx.setOn(e.target.checked); $('sfx-vol').disabled = !e.target.checked; sfx.click(); };
+  $('sfx-vol').oninput = (e) => { sfx.setVol(Number(e.target.value) / 100); $('sfx-val').textContent = e.target.value + '%'; };
+  $('sfx-vol').onchange = () => sfx.click();
   $('ram').oninput = (e) => ($('ram-val').textContent = e.target.value + ' GB');
   $('ram').onchange = async (e) => { S.settings.ramGb = Number(e.target.value); await api.setSettings({ ramGb: e.target.value }); };
   $('d-lang').onchange = (e) => { setLang(e.target.value); $('btn-settings').click(); };
