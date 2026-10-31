@@ -179,10 +179,17 @@ async function ensureJava(mc) {
   let ok = false;
   for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
     let got = 0;
-    await download(pkg.link, archive, (n) => {
-      got += n;
-      status('java.download.mb', { major, mb: (got / 1048576).toFixed(0) }, null);
-    });
+    if (attempt === 1) {
+      await download(pkg.link, archive, (n) => {
+        got += n;
+        status('java.download.mb', { major, mb: (got / 1048576).toFixed(0) }, null);
+      });
+    } else {
+      // plan B: curl del sistema (viene en Windows 10/11 y en Linux)
+      status('java.download.mb', { major, mb: '…' }, null);
+      await fsp.rm(archive, { force: true });
+      await run(isWin ? 'curl.exe' : 'curl', ['-fL', '--retry', '3', '-o', archive, pkg.link]);
+    }
     const real = await sha256(archive);
     const st = await fsp.stat(archive);
     const head = (await fsp.readFile(archive)).subarray(0, 8).toString('hex');
