@@ -14,6 +14,12 @@ const tar = require('tar');
 
 const config = require('./config.json');
 
+// Linux (Wayland): sin esto, a veces no se puede escribir en los campos de texto
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-wayland-ime');
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+}
+
 /* Carpeta de datos (Windows: %APPDATA%\.cachusafio · Linux: ~/.config/.cachusafio) */
 const ROOT = path.join(app.getPath('appData'), '.' + config.id);
 const INSTANCES = path.join(ROOT, 'instances');
@@ -39,13 +45,19 @@ async function loadSettings() {
   settingsCache.ramGb ||= 4;
   settingsCache.lang ||= (app.getLocale() || 'es').toLowerCase().startsWith('es') ? 'es' : 'en';
   settingsCache.accounts ||= [];
-  if (!settingsCache.packs) {
-    // primera vez: modpacks que vienen con el launcher
-    settingsCache.packs = (config.defaultPacks || []).map((p) => ({
-      url: p.manifestUrl,
-      id: p.id,
-      meta: { name: p.name || p.id },
-    }));
+  settingsCache.packs ||= [];
+  settingsCache.removedDefaults ||= [];
+  // Modpacks que vienen con el launcher: se agregan si faltan y su enlace se mantiene al día
+  // (así, si cambias el enlace en config.json, a todos se les corrige solo).
+  for (const d of config.defaultPacks || []) {
+    const cur = settingsCache.packs.find((p) => p.fromDefault === d.id);
+    if (cur) {
+      cur.url = d.manifestUrl;
+    } else if (!settingsCache.removedDefaults.includes(d.id) && !settingsCache.packs.some((p) => p.url === d.manifestUrl)) {
+      // limpia restos de una versión vieja del mismo modpack (enlace antiguo)
+      settingsCache.packs = settingsCache.packs.filter((p) => p.id !== d.id);
+      settingsCache.packs.push({ url: d.manifestUrl, id: d.id, fromDefault: d.id, meta: { name: d.name || d.id } });
+    }
   }
   return settingsCache;
 }
@@ -453,6 +465,8 @@ ipcMain.handle('packs:add', async (_e, input) => {
 
 ipcMain.handle('packs:remove', async (_e, id, deleteFiles) => {
   const s = await loadSettings();
+  const gone = s.packs.find((p) => p.id === id);
+  if (gone && gone.fromDefault) (s.removedDefaults ||= []).push(gone.fromDefault);
   s.packs = s.packs.filter((p) => p.id !== id);
   if (s.selectedPack === id) s.selectedPack = s.packs[0] ? s.packs[0].id : null;
   await saveSettings();
