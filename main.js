@@ -25,6 +25,13 @@ const ROOT = path.join(app.getPath('appData'), '.' + config.id);
 const INSTANCES = path.join(ROOT, 'instances');
 const SETTINGS_FILE = path.join(ROOT, 'launcher.json');
 const LOG_FILE = path.join(ROOT, 'latest.log');
+const LAUNCHER_LOG = path.join(ROOT, 'launcher.log');
+function logLine(text) {
+  try {
+    fs.mkdirSync(ROOT, { recursive: true });
+    fs.appendFileSync(LAUNCHER_LOG, `[${new Date().toISOString()}] ${text}\n`);
+  } catch {}
+}
 
 let win = null;
 let playing = false;
@@ -86,14 +93,31 @@ async function sha1(file) {
 }
 
 async function download(url, dest, onChunk) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} → ${url}`);
-  await fsp.mkdir(path.dirname(dest), { recursive: true });
-  const tmp = dest + '.part';
-  const body = Readable.fromWeb(res.body);
-  if (onChunk) body.on('data', (c) => onChunk(c.length));
-  await pipeline(body, fs.createWriteStream(tmp));
-  await fsp.rename(tmp, dest);
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} → ${url}`);
+      await fsp.mkdir(path.dirname(dest), { recursive: true });
+      const tmp = dest + '.part';
+      const expected = Number(res.headers.get('content-length')) || 0;
+      let got = 0;
+      const body = Readable.fromWeb(res.body);
+      body.on('data', (c) => {
+        got += c.length;
+        if (onChunk) onChunk(c.length);
+      });
+      await pipeline(body, fs.createWriteStream(tmp));
+      if (expected && got !== expected) throw new Error(`Descarga incompleta (${got}/${expected} bytes) → ${url}`);
+      await fsp.rename(tmp, dest);
+      return;
+    } catch (e) {
+      lastErr = e;
+      await fsp.rm(dest + '.part', { force: true });
+      logLine(`download intento ${attempt} falló: ${errText(e)}`);
+    }
+  }
+  throw lastErr;
 }
 
 function run(cmd, args, opts = {}) {
@@ -148,8 +172,14 @@ async function ensureJava(mc) {
   status('java.install', {}, null);
   await fsp.rm(dir, { recursive: true, force: true });
   await fsp.mkdir(dir, { recursive: true });
-  if (isWin) await extract(archive, { dir });
-  else await tar.x({ file: archive, cwd: dir });
+  try {
+    if (isWin) await extract(archive, { dir });
+    else await tar.x({ file: archive, cwd: dir });
+  } catch (e) {
+    await fsp.rm(archive, { force: true });
+    await fsp.rm(dir, { recursive: true, force: true });
+    throw new Error(`El Java descargado estaba dañado (${errText(e)}). Se borró; vuelve a darle Play para descargarlo otra vez.`);
+  }
   await fsp.rm(archive, { force: true });
 
   const found = await findJavaExe(dir);
@@ -361,6 +391,7 @@ ipcMain.handle('auth:microsoft', async () => {
     await upsertAccount(acc);
     return { ok: true, account: publicAccount(acc) };
   } catch (e) {
+    logLine('ERROR: ' + (e && e.stack ? e.stack : errText(e)));
     return { ok: false, error: errText(e) };
   }
 });
@@ -459,6 +490,7 @@ ipcMain.handle('packs:add', async (_e, input) => {
     await saveSettings();
     return { ok: true, packs: s.packs.map(publicPack), selectedPack: m.id };
   } catch (e) {
+    logLine('ERROR: ' + (e && e.stack ? e.stack : errText(e)));
     return { ok: false, error: errText(e) };
   }
 });
@@ -551,12 +583,15 @@ ipcMain.handle('game:play', async (_e, packId) => {
     playing = false;
     send('game-state', 'idle');
     status('error', {}, 0);
+    logLine('ERROR: ' + (e && e.stack ? e.stack : errText(e)));
     return { ok: false, error: errText(e) };
   }
 });
 
 ipcMain.handle('game:openLog', async () => {
-  if (await exists(LOG_FILE)) shell.openPath(LOG_FILE);
+  if (await exists(LAUNCHER_LOG)) shell.openPath(LAUNCHER_LOG);
+  else if (await exists(LOG_FILE)) shell.openPath(LOG_FILE);
+  else shell.openPath(ROOT);
 });
 
 ipcMain.handle('settings:set', async (_e, patch) => {
