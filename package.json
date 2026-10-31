@@ -1,0 +1,65 @@
+{
+  "name": "cachusafio-launcher",
+  "version": "2.0.0",
+  "description": "Launcher de modpacks de Cachusafio",
+  "author": "Cachusafio",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "manifest": "node tools/generate-manifest.js",
+    "dist:win": "electron-builder --win portable nsis",
+    "dist:linux": "electron-builder --linux AppImage tar.gz",
+    "dist": "electron-builder --win --linux"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1",
+    "minecraft-launcher-core": "^3.18.2",
+    "msmc": "^5.0.5",
+    "tar": "^7.4.3"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "cl.cachusafio.launcher",
+    "productName": "Cachusafio",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "config.json",
+      "renderer/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Cachusafio-${version}-${os}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Cachusafio-${version}-portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Cachusafio-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "icon": "build/icon.png",
+      "category": "Game",
+      "artifactName": "Cachusafio-${version}-linux.${ext}"
+    }
+  }
+}

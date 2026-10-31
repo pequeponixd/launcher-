@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: https:; media-src https:" />
+  <title>Cachusafio</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ============ Pantalla de login ============ -->
+  <section id="login" class="screen hidden">
+    <div class="ring"></div>
+    <div class="login-box">
+      <h1><span data-i18n="login.title1">POR FAVOR</span> <em data-i18n="login.title2">INICIA SESIÓN</em></h1>
+      <h2 data-i18n="login.title3">CON TU CUENTA</h2>
+
+      <button class="btn-red" id="btn-ms">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z"/></svg>
+        <span data-i18n="login.ms">Cuenta Microsoft</span>
+      </button>
+
+      <button class="link" id="btn-show-offline" data-i18n="login.offline">Jugar sin cuenta (modo offline)</button>
+      <form id="offline-form" class="hidden">
+        <input id="offline-name" maxlength="16" autocomplete="off" spellcheck="false" data-i18n-ph="login.nick" placeholder="Tu nombre de jugador" />
+        <button class="btn-ghost" type="submit" data-i18n="login.enter">Entrar</button>
+      </form>
+      <p class="err" id="login-error"></p>
+
+      <label class="lang">
+        <span data-i18n="lang">Idioma</span>
+        <select id="lang-login"><option value="es">Español</option><option value="en">English</option></select>
+      </label>
+    </div>
+  </section>
+
+  <!-- ============ Launcher ============ -->
+  <section id="app" class="screen hidden">
+    <aside class="rail">
+      <div class="packs" id="packs"></div>
+      <div class="rail-bottom">
+        <button class="round plus" id="btn-add" title="Agregar modpack">+</button>
+        <button class="round avatar-btn" id="btn-account"><img id="avatar" alt="" /></button>
+      </div>
+    </aside>
+
+    <main class="stage" id="stage">
+      <div class="stage-bg" id="stage-bg"></div>
+      <div class="stage-shade"></div>
+
+      <button class="gear" id="btn-settings" title="Ajustes">⚙</button>
+
+      <div class="hero">
+        <img id="hero-logo" class="hidden" alt="" />
+        <h1 id="hero-title"></h1>
+        <p id="hero-desc"></p>
+        <p class="meta" id="hero-meta"></p>
+      </div>
+
+      <div class="bottom">
+        <div class="progress hidden" id="progress">
+          <div class="bar"><div class="fill" id="fill"></div></div>
+          <p id="status"></p>
+        </div>
+        <button class="play" id="btn-play"><span id="play-label">Play</span></button>
+      </div>
+    </main>
+  </section>
+
+  <!-- ============ Menú de cuentas ============ -->
+  <div id="account-menu" class="popup hidden"></div>
+
+  <!-- ============ Diálogos ============ -->
+  <div id="modal" class="modal hidden">
+    <div class="dialog" id="dialog"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

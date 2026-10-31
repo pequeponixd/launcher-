@@ -1,0 +1,22 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+const inv = (ch) => (...a) => ipcRenderer.invoke(ch, ...a);
+
+contextBridge.exposeInMainWorld('api', {
+  getState: inv('state:get'),
+  refreshPacks: inv('packs:refresh'),
+  addPack: inv('packs:add'),
+  removePack: inv('packs:remove'),
+  selectPack: inv('packs:select'),
+  openFolder: inv('packs:openFolder'),
+  loginMicrosoft: inv('auth:microsoft'),
+  loginOffline: inv('auth:offline'),
+  selectAccount: inv('auth:select'),
+  removeAccount: inv('auth:remove'),
+  play: inv('game:play'),
+  openLog: inv('game:openLog'),
+  setSettings: inv('settings:set'),
+  systemInfo: inv('system:info'),
+  onStatus: (cb) => ipcRenderer.on('status', (_e, d) => cb(d)),
+  onGameState: (cb) => ipcRenderer.on('game-state', (_e, s) => cb(s)),
+});

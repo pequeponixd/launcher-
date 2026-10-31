@@ -1,0 +1,11 @@
+{
+  "id": "cachusafio",
+  "name": "Cachusafio",
+  "defaultPacks": [
+    {
+      "id": "cachusafio",
+      "name": "Cachusafio",
+      "manifestUrl": "https://raw.githubusercontent.com/TU_USUARIO/cachusafio-modpack/main/manifest.json"
+    }
+  ]
+}
