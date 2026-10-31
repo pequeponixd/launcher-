@@ -1,8 +1,12 @@
 name: Build launcher
+
 on:
   workflow_dispatch:
   push:
     tags: ['v*']
+
+permissions:
+  contents: write
 
 jobs:
   windows:
@@ -10,21 +14,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with:
+          node-version: 22
       - run: npm install
-      - run: npm run dist:win
+      - run: npx electron-builder --win portable nsis --publish never
       - uses: actions/upload-artifact@v4
-        with: { name: windows, path: dist/*.exe }
+        with:
+          name: windows
+          path: dist/*.exe
+      - name: Adjuntar al release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
 
   linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with:
+          node-version: 22
       - run: npm install
-      - run: npm run dist:linux
+      - run: npx electron-builder --linux AppImage tar.gz --publish never
       - uses: actions/upload-artifact@v4
-        with: { name: linux, path: |
+        with:
+          name: linux
+          path: |
             dist/*.AppImage
-            dist/*.tar.gz }
+            dist/*.tar.gz
+      - name: Adjuntar al release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.AppImage
+            dist/*.tar.gz
