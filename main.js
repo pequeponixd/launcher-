@@ -12,6 +12,7 @@ const tar = require('tar');
 const { downloadFile } = require('./downloader');
 const { syncPack: syncPackFiles } = require('./packsync');
 const { loadJvmArgs } = require('./jvmargs');
+const { gpuEnv, withEnv } = require('./gpu');
 
 const config = require('./config.json');
 
@@ -416,7 +417,7 @@ ipcMain.handle('state:get', async () => {
     selectedPack: s.selectedPack || (s.packs[0] && s.packs[0].id) || null,
     accounts: s.accounts.map(publicAccount),
     selectedAccount: s.selectedAccount || null,
-    settings: { ramGb: s.ramGb, lang: s.lang },
+    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu },
   };
 });
 
@@ -519,15 +520,19 @@ ipcMain.handle('game:play', async (_e, packId) => {
     });
 
     status('game.start', {}, null);
-    const proc = await launcher.launch({
-      authorization,
-      root: ROOT,
-      javaPath,
-      version,
-      memory: { max: `${ramGb}G`, min: '1G' },
-      customArgs,
-      overrides: { gameDirectory: gameDir },
-    });
+    const gpuVars = gpuEnv(process.platform, s.nvidiaGpu);
+    if (Object.keys(gpuVars).length) logLine('gráfica NVIDIA activada (PRIME render offload)');
+    const proc = await withEnv(gpuVars, () =>
+      launcher.launch({
+        authorization,
+        root: ROOT,
+        javaPath,
+        version,
+        memory: { max: `${ramGb}G`, min: '1G' },
+        customArgs,
+        overrides: { gameDirectory: gameDir },
+      })
+    );
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
     await saveSettings();
     return { ok: true };
@@ -552,8 +557,9 @@ ipcMain.handle('settings:set', async (_e, patch) => {
   const next = {};
   if (patch.ramGb != null) next.ramGb = Math.min(32, Math.max(2, Number(patch.ramGb) || 4));
   if (patch.lang) next.lang = patch.lang === 'en' ? 'en' : 'es';
+  if (patch.nvidiaGpu != null) next.nvidiaGpu = !!patch.nvidiaGpu;
   const s = await saveSettings(next);
-  return { ramGb: s.ramGb, lang: s.lang, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
+  return { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
 });
 
 ipcMain.handle('system:info', () => ({ totalRamGb: Math.floor(os.totalmem() / 1073741824) }));
