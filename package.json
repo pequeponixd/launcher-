@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "manifest": "node tools/generate-manifest.js",
+    "test": "node --test",
     "dist:win": "electron-builder --win portable nsis",
     "dist:linux": "electron-builder --linux AppImage tar.gz",
     "dist": "electron-builder --win --linux"
@@ -30,6 +31,8 @@
     },
     "files": [
       "main.js",
+      "downloader.js",
+      "packsync.js",
       "preload.js",
       "config.json",
       "renderer/**/*",

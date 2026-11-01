@@ -6,6 +6,7 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - Varios modpacks en la barra lateral (botón **+** para agregar otro con su enlace o `usuario/repo`).
 - Login con Microsoft (varias cuentas) o modo offline con nombre de jugador.
 - Descarga solo Java, Fabric/Quilt/Forge/NeoForge, Minecraft y el modpack. Actualiza solo lo que cambió.
+- Descargas a prueba de red mala: reanuda si se corta, detecta cuando se queda pegada, reintenta con espera, baja los archivos grandes con varias conexiones y verifica cada archivo (hash) antes de usarlo. Si algo falla, el error dice qué archivo y por qué, y no tumba al resto.
 - Icono, fondo y logo de cada modpack vienen del propio modpack.
 - Idiomas: Español / English.
 
@@ -13,6 +14,7 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 1. Carpeta `modpack/` con `mods/`, `config/` (incluye `config/fancymenu/`), `resourcepacks/`… y un `pack.json` (copia `tools/pack.example.json`). Opcional: `icon.png`, `background.png`, `logo.png`.
 2. `node tools/generate-manifest.js ./modpack`
 3. Sube la carpeta completa a un repo público de GitHub (cada archivo < 100 MB).
+   Los archivos de más de 100 MB no caben en el repo: súbelos como archivo de un **Release** y pon su enlace en el campo `"url"` de esa entrada del manifest. Opcional: `"urls": ["https://…"]` con enlaces de respaldo; si el primero falla, prueba los demás.
 4. En `config.json` pon tu URL en `defaultPacks[0].manifestUrl`:
    `https://raw.githubusercontent.com/USUARIO/REPO/main/manifest.json`
    (o los amigos pueden pegar `USUARIO/REPO` en el botón **+**).
