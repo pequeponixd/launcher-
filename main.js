@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -37,11 +37,45 @@ function logLine(text) {
 
 let win = null;
 let playing = false;
+let gameProc = null;
 
 /* ---------------------------------------------------------- utilidades */
 
 const exists = (p) => fsp.access(p).then(() => true, () => false);
 const errText = (e) => String(e && e.message ? e.message : e);
+
+// El refresh token de Microsoft da acceso a la cuenta: se guarda cifrado con el llavero del sistema
+// (DPAPI en Windows, libsecret/kwallet en Linux). Si no hay llavero, queda como antes.
+const canEncrypt = () => app.isReady() && safeStorage.isEncryptionAvailable();
+function sealToken(token) {
+  if (!token || token.startsWith('enc:') || !canEncrypt()) return token;
+  return 'enc:' + safeStorage.encryptString(token).toString('base64');
+}
+function openToken(token) {
+  if (!token || !token.startsWith('enc:')) return token;
+  return safeStorage.decryptString(Buffer.from(token.slice(4), 'base64'));
+}
+
+// "3.1.0" > "3.0.2"? Tags raros (sin números) nunca cuentan como más nuevos
+function isNewer(a, b) {
+  const pa = String(a).replace(/^v/i, '').split('.').map(Number);
+  const pb = String(b).replace(/^v/i, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (Number.isNaN(x) || Number.isNaN(y)) return false;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
+async function tailFile(file, lines = 40) {
+  try {
+    return (await fsp.readFile(file, 'utf8')).trimEnd().split('\n').slice(-lines).join('\n');
+  } catch {
+    return '';
+  }
+}
 
 let settingsCache = null;
 async function loadSettings() {
@@ -68,6 +102,8 @@ async function loadSettings() {
       settingsCache.packs.push({ url: d.manifestUrl, id: d.id, fromDefault: d.id, meta: { name: d.name || d.id } });
     }
   }
+  // Tokens guardados en texto plano por versiones anteriores: se cifran la próxima vez que se guarde
+  for (const a of settingsCache.accounts) if (a.refreshToken) a.refreshToken = sealToken(a.refreshToken);
   return settingsCache;
 }
 
@@ -330,7 +366,7 @@ ipcMain.handle('auth:microsoft', async () => {
       type: 'microsoft',
       name: mc.profile.name,
       uuid: mc.profile.id,
-      refreshToken: xbox.save(),
+      refreshToken: sealToken(xbox.save()),
     };
     await upsertAccount(acc);
     return { ok: true, account: publicAccount(acc) };
@@ -373,12 +409,18 @@ async function resolveAuthorization(acc) {
       meta: { type: 'mojang', demo: false },
     };
   }
-  const xbox = await authManager.refresh(acc.refreshToken);
-  const mc = await xbox.getMinecraft();
+  let xbox, mc;
+  try {
+    xbox = await authManager.refresh(openToken(acc.refreshToken));
+    mc = await xbox.getMinecraft();
+  } catch (e) {
+    logLine('ERROR al renovar la sesión de Microsoft: ' + errText(e));
+    throw new Error('msExpired');
+  }
   const s = await loadSettings();
   const stored = s.accounts.find((a) => a.id === acc.id);
   if (stored) {
-    stored.refreshToken = xbox.save();
+    stored.refreshToken = sealToken(xbox.save());
     stored.name = mc.profile.name;
     await saveSettings();
   }
@@ -417,7 +459,7 @@ ipcMain.handle('state:get', async () => {
     selectedPack: s.selectedPack || (s.packs[0] && s.packs[0].id) || null,
     accounts: s.accounts.map(publicAccount),
     selectedAccount: s.selectedAccount || null,
-    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu },
+    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch },
   };
 });
 
@@ -504,19 +546,29 @@ ipcMain.handle('game:play', async (_e, packId) => {
     launcher.on('progress', (e) => {
       status('game.download', { type: e.type }, e.total ? (e.task / e.total) * 100 : null);
     });
+    let hidden = false;
     launcher.on('data', (l) => {
       log.write(l + '\n');
+      if (s.hideOnLaunch && !hidden && win && !win.isDestroyed()) {
+        hidden = true;
+        win.hide();
+      }
       send('game-state', 'running');
       status('game.running', {}, null);
     });
     launcher.on('close', (code) => {
-      log.end();
+      const killed = gameProc && gameProc.killedByUser;
+      gameProc = null;
       playing = false;
+      if (hidden && win && !win.isDestroyed()) win.show();
       send('game-state', 'idle');
-      if (code && code !== 0) {
-        status('game.crashed', { code }, 0);
-        send('game-error', { code });
-      } else status('ready', {}, 100);
+      // el log se termina de escribir antes de leer sus últimas líneas para el aviso de error
+      log.end(async () => {
+        if (code && code !== 0 && !killed) {
+          status('game.crashed', { code }, 0);
+          send('game-error', { code, tail: await tailFile(LOG_FILE) });
+        } else status('ready', {}, 100);
+      });
     });
 
     status('game.start', {}, null);
@@ -534,6 +586,7 @@ ipcMain.handle('game:play', async (_e, packId) => {
       })
     );
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
+    gameProc = proc;
     await saveSettings();
     return { ok: true };
   } catch (e) {
@@ -553,11 +606,35 @@ ipcMain.handle('game:openLog', async () => {
   else shell.openPath(game >= launcher ? LOG_FILE : LAUNCHER_LOG);
 });
 
+ipcMain.handle('game:kill', () => {
+  if (!gameProc) return { ok: false };
+  gameProc.killedByUser = true;
+  gameProc.kill();
+  return { ok: true };
+});
+
+// Busca en GitHub si hay un release más nuevo que esta versión. Sin internet o sin repo, no dice nada.
+ipcMain.handle('app:checkUpdate', async () => {
+  if (!config.repo) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${config.repo}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': `${config.id}-launcher` },
+    });
+    if (!res.ok) return null;
+    const r = await res.json();
+    if (!isNewer(r.tag_name, app.getVersion())) return null;
+    return { version: String(r.tag_name).replace(/^v/i, ''), url: r.html_url };
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle('settings:set', async (_e, patch) => {
   const next = {};
   if (patch.ramGb != null) next.ramGb = Math.min(32, Math.max(2, Number(patch.ramGb) || 4));
   if (patch.lang) next.lang = patch.lang === 'en' ? 'en' : 'es';
   if (patch.nvidiaGpu != null) next.nvidiaGpu = !!patch.nvidiaGpu;
+  if (patch.hideOnLaunch != null) next.hideOnLaunch = !!patch.hideOnLaunch;
   const s = await saveSettings(next);
   return { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
 });

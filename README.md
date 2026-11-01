@@ -1,4 +1,4 @@
-# Cachusafio Launcher 2.1
+# Cachusafio Launcher 3.1
 
 Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo abren, inician sesión (cuenta Microsoft u offline) y le dan **Play**. No hay IP en el launcher: el botón para entrar al servidor lo pones tú en el menú principal con **FancyMenu**, dentro del modpack.
 
@@ -8,6 +8,10 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - Descarga solo Java, Fabric/Quilt/Forge/NeoForge, Minecraft y el modpack. Actualiza solo lo que cambió.
 - Descargas a prueba de red mala: reanuda si se corta, detecta cuando se queda pegada, reintenta con espera, baja los archivos grandes con varias conexiones y verifica cada archivo (hash) antes de usarlo. Si algo falla, el error dice qué archivo y por qué, y no tumba al resto.
 - Icono, fondo y logo de cada modpack vienen del propio modpack.
+- Avisa cuando hay una versión nueva del launcher en los Releases de GitHub (`repo` en `config.json`).
+- Si Minecraft se cierra con error, muestra las últimas líneas del log para copiarlas y pedir ayuda.
+- Botón para forzar el cierre del juego y opción para ocultar el launcher mientras juegas.
+- La sesión de Microsoft se guarda cifrada con el llavero del sistema.
 - Idiomas: Español / English.
 
 ## Crear el modpack (tú, una vez)
@@ -24,7 +28,7 @@ En FancyMenu crea tu menú principal con un botón con la acción de unirse a un
 `keepLocal` en `pack.json` lista archivos que NO se pisan si el jugador ya los tiene (por defecto `options.txt` y `servers.dat`).
 
 ## Generar los instaladores
-No se compila a mano: sube esta carpeta a GitHub y en la pestaña **Actions → Build launcher → Run workflow**. Al terminar descargas:
+No se compila a mano: crea un tag `vX.Y.Z` (o un Release con ese tag) y GitHub Actions compila y adjunta los instaladores; la versión sale del tag. También puedes ir a **Actions → Build launcher → Run workflow**. Al terminar descargas:
 - **Windows:** `Cachusafio-X-portable.exe` (un solo archivo, sin instalar) y `Cachusafio-Setup-X.exe` (instalador).
 - **Linux:** `Cachusafio-X-linux.AppImage` y un `.tar.gz`.
 

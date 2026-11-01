@@ -7,22 +7,32 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Iconos (se usan con <svg><use href="#i-..."/></svg>) -->
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="i-folder" viewBox="0 0 16 16"><path fill="currentColor" d="M1 3h5l1.5 1.5H15V13H1z"/></symbol>
+    <symbol id="i-log" viewBox="0 0 16 16"><path fill="currentColor" d="M3 1h7l3 3v11H3zm2 5v1h6V6zm0 3v1h6V9zm0 3v1h4v-1z"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 16 16"><path fill="currentColor" d="M7 0h2l.4 2.1 1.5.6 1.8-1.2 1.4 1.4-1.2 1.8.6 1.5L16 7v2l-2.1.4-.6 1.5 1.2 1.8-1.4 1.4-1.8-1.2-1.5.6L9 16H7l-.4-2.1-1.5-.6-1.8 1.2-1.4-1.4 1.2-1.8-.6-1.5L0 9V7l2.1-.4.6-1.5-1.2-1.8 1.4-1.4 1.8 1.2 1.5-.6zm1 5a3 3 0 100 6 3 3 0 000-6z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 16 16"><path fill="currentColor" d="M7 2h2v5h5v2H9v5H7V9H2V7h5z"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 16 16"><path fill="currentColor" d="M4 6h8l-4 5z"/></symbol>
+    <symbol id="i-ms" viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z"/></symbol>
+  </svg>
+
   <!-- ============ Pantalla de login ============ -->
   <section id="login" class="screen hidden">
-    <div class="ring"></div>
     <div class="login-box">
-      <h1><span data-i18n="login.title1">POR FAVOR</span> <em data-i18n="login.title2">INICIA SESIÓN</em></h1>
-      <h2 data-i18n="login.title3">CON TU CUENTA</h2>
+      <p class="eyebrow">Cachusafio Launcher</p>
+      <h1 data-i18n="login.title">Inicia sesión</h1>
+      <p class="login-sub" data-i18n="login.sub">Con tu cuenta de Microsoft puedes entrar a servidores premium. Si el servidor no la pide, basta con un nombre.</p>
 
-      <button class="btn-red" id="btn-ms">
-        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z"/></svg>
+      <button class="btn primary wide" id="btn-ms">
+        <svg class="ic"><use href="#i-ms"/></svg>
         <span data-i18n="login.ms">Cuenta Microsoft</span>
       </button>
+      <button class="btn wide" id="btn-show-offline" data-i18n="login.offline">Jugar sin cuenta</button>
 
-      <button class="link" id="btn-show-offline" data-i18n="login.offline">Jugar sin cuenta (modo offline)</button>
       <form id="offline-form" class="hidden">
         <input id="offline-name" maxlength="16" autocomplete="off" spellcheck="false" data-i18n-ph="login.nick" placeholder="Tu nombre de jugador" />
-        <button class="btn-ghost" type="submit" data-i18n="login.enter">Entrar</button>
+        <button class="btn primary" type="submit" data-i18n="login.enter">Entrar</button>
       </form>
       <p class="err" id="login-error"></p>
 
@@ -35,34 +45,46 @@
 
   <!-- ============ Launcher ============ -->
   <section id="app" class="screen hidden">
-    <aside class="rail">
+    <aside class="side">
+      <div class="brand"><b id="brand-name">Cachusafio</b><small id="brand-ver"></small></div>
+
+      <p class="label" data-i18n="modpacks">Modpacks</p>
       <div class="packs" id="packs"></div>
-      <div class="rail-bottom">
-        <button class="round plus" id="btn-add" title="Agregar modpack">+</button>
-        <button class="round avatar-btn" id="btn-account"><img id="avatar" alt="" /></button>
-      </div>
+      <button class="add-pack" id="btn-add"><svg class="ic"><use href="#i-plus"/></svg><span data-i18n="addPack">Agregar modpack</span></button>
+
+      <button class="account" id="btn-account">
+        <img id="avatar" alt="" />
+        <span class="who"><b id="acc-name"></b><small id="acc-type"></small></span>
+        <svg class="ic"><use href="#i-chev"/></svg>
+      </button>
     </aside>
 
     <main class="stage" id="stage">
       <div class="stage-bg" id="stage-bg"></div>
-      <div class="stage-shade"></div>
 
-      <button class="gear" id="btn-settings" title="Ajustes">⚙</button>
+      <div class="topbar">
+        <a class="update hidden" id="update" target="_blank"></a>
+        <span class="spacer"></span>
+        <button class="icon-btn" id="btn-folder" data-i18n-title="openFolder"><svg class="ic"><use href="#i-folder"/></svg></button>
+        <button class="icon-btn" id="btn-log" data-i18n-title="openLog"><svg class="ic"><use href="#i-log"/></svg></button>
+        <button class="icon-btn" id="btn-settings" data-i18n-title="settings"><svg class="ic"><use href="#i-gear"/></svg></button>
+      </div>
 
       <div class="hero">
         <img id="hero-logo" class="hidden" alt="" />
         <h1 id="hero-title"></h1>
         <p id="hero-desc"></p>
-        <p class="meta" id="hero-meta"></p>
+        <div class="chips" id="hero-meta"></div>
       </div>
 
-      <div class="bottom">
-        <div class="progress hidden" id="progress">
-          <div class="bar"><div class="fill" id="fill"></div></div>
+      <footer class="dock">
+        <div class="progress" id="progress">
           <p id="status"></p>
+          <div class="bar hidden" id="bar"><div class="fill" id="fill"></div></div>
         </div>
-        <button class="play" id="btn-play"><span id="play-label">Play</span></button>
-      </div>
+        <button class="btn danger hidden" id="btn-kill" data-i18n="kill">Cerrar juego</button>
+        <button class="play" id="btn-play"><span id="play-label">Jugar</span></button>
+      </footer>
     </main>
   </section>
 

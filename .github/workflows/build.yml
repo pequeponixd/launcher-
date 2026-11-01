@@ -17,6 +17,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      # Los instaladores toman el número del tag (v3.1.0 → 3.1.0), así nunca quedan con otra versión
+      - name: Versión desde el tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
       - run: npx electron-builder --win portable nsis --publish never
       - uses: actions/upload-artifact@v4
         with:
@@ -36,6 +41,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      # Los instaladores toman el número del tag (v3.1.0 → 3.1.0), así nunca quedan con otra versión
+      - name: Versión desde el tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
       - run: npx electron-builder --linux AppImage tar.gz --publish never
       - uses: actions/upload-artifact@v4
         with:
