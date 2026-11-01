@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -13,6 +13,13 @@ const { downloadFile } = require('./downloader');
 const { syncPack: syncPackFiles } = require('./packsync');
 const { loadJvmArgs } = require('./jvmargs');
 const { gpuEnv, withEnv } = require('./gpu');
+const { snapshotMods, diffMods, isEmpty } = require('./changes');
+const { pingServer } = require('./serverping');
+const { pathToFileURL } = require('url');
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+} catch { /* sin el módulo solo queda el aviso con enlace */ }
 
 const config = require('./config.json');
 
@@ -28,6 +35,10 @@ const INSTANCES = path.join(ROOT, 'instances');
 const SETTINGS_FILE = path.join(ROOT, 'launcher.json');
 const LOG_FILE = path.join(ROOT, 'latest.log');
 const LAUNCHER_LOG = path.join(ROOT, 'launcher.log');
+const CUSTOM = path.join(ROOT, 'custom'); // fondos/iconos/logos que el jugador eligió para cada modpack
+
+// cachu://custom/<pack>/<archivo> sirve esas imágenes a la interfaz sin abrirle todo el disco
+protocol.registerSchemesAsPrivileged([{ scheme: 'cachu', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 function logLine(text) {
   try {
     fs.mkdirSync(ROOT, { recursive: true });
@@ -37,11 +48,45 @@ function logLine(text) {
 
 let win = null;
 let playing = false;
+let gameProc = null;
 
 /* ---------------------------------------------------------- utilidades */
 
 const exists = (p) => fsp.access(p).then(() => true, () => false);
 const errText = (e) => String(e && e.message ? e.message : e);
+
+// El refresh token de Microsoft da acceso a la cuenta: se guarda cifrado con el llavero del sistema
+// (DPAPI en Windows, libsecret/kwallet en Linux). Si no hay llavero, queda como antes.
+const canEncrypt = () => app.isReady() && safeStorage.isEncryptionAvailable();
+function sealToken(token) {
+  if (!token || token.startsWith('enc:') || !canEncrypt()) return token;
+  return 'enc:' + safeStorage.encryptString(token).toString('base64');
+}
+function openToken(token) {
+  if (!token || !token.startsWith('enc:')) return token;
+  return safeStorage.decryptString(Buffer.from(token.slice(4), 'base64'));
+}
+
+// "3.1.0" > "3.0.2"? Tags raros (sin números) nunca cuentan como más nuevos
+function isNewer(a, b) {
+  const pa = String(a).replace(/^v/i, '').split('.').map(Number);
+  const pb = String(b).replace(/^v/i, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (Number.isNaN(x) || Number.isNaN(y)) return false;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
+async function tailFile(file, lines = 40) {
+  try {
+    return (await fsp.readFile(file, 'utf8')).trimEnd().split('\n').slice(-lines).join('\n');
+  } catch {
+    return '';
+  }
+}
 
 let settingsCache = null;
 async function loadSettings() {
@@ -68,6 +113,8 @@ async function loadSettings() {
       settingsCache.packs.push({ url: d.manifestUrl, id: d.id, fromDefault: d.id, meta: { name: d.name || d.id } });
     }
   }
+  // Tokens guardados en texto plano por versiones anteriores: se cifran la próxima vez que se guarde
+  for (const a of settingsCache.accounts) if (a.refreshToken) a.refreshToken = sealToken(a.refreshToken);
   return settingsCache;
 }
 
@@ -290,6 +337,9 @@ function metaOf(m, url) {
     background: rel(url, m.background),
     logo: rel(url, m.logo),
     accent: m.accent || null,
+    server: m.server || null,
+    // notas que escribe el autor del modpack: texto o lista de líneas
+    changelog: Array.isArray(m.changelog) ? m.changelog.map(String) : m.changelog ? String(m.changelog).split('\n') : [],
   };
 }
 
@@ -330,7 +380,7 @@ ipcMain.handle('auth:microsoft', async () => {
       type: 'microsoft',
       name: mc.profile.name,
       uuid: mc.profile.id,
-      refreshToken: xbox.save(),
+      refreshToken: sealToken(xbox.save()),
     };
     await upsertAccount(acc);
     return { ok: true, account: publicAccount(acc) };
@@ -373,12 +423,18 @@ async function resolveAuthorization(acc) {
       meta: { type: 'mojang', demo: false },
     };
   }
-  const xbox = await authManager.refresh(acc.refreshToken);
-  const mc = await xbox.getMinecraft();
+  let xbox, mc;
+  try {
+    xbox = await authManager.refresh(openToken(acc.refreshToken));
+    mc = await xbox.getMinecraft();
+  } catch (e) {
+    logLine('ERROR al renovar la sesión de Microsoft: ' + errText(e));
+    throw new Error('msExpired');
+  }
   const s = await loadSettings();
   const stored = s.accounts.find((a) => a.id === acc.id);
   if (stored) {
-    stored.refreshToken = xbox.save();
+    stored.refreshToken = sealToken(xbox.save());
     stored.name = mc.profile.name;
     await saveSettings();
   }
@@ -396,6 +452,8 @@ async function refreshPacks() {
         p.id = m.id;
         p.meta = metaOf(m, p.url);
         p.offline = false;
+        // qué cambiaría en mods/ al darle Jugar (solo si ya se jugó antes con este launcher)
+        p.pending = p.mods ? diffMods(p.mods, snapshotMods(m.files)) : null;
       } catch {
         p.offline = true; // se queda con los datos guardados
       }
@@ -405,7 +463,26 @@ async function refreshPacks() {
   return s.packs;
 }
 
-const publicPack = (p) => ({ id: p.id, url: p.url, offline: !!p.offline, ...p.meta });
+const customUrl = (p, kind) =>
+  p.custom && p.custom[kind] ? `cachu://custom/${encodeURIComponent(p.id)}/${encodeURIComponent(p.custom[kind])}` : null;
+
+const publicPack = (p) => {
+  const meta = p.meta || {};
+  const c = p.custom || {};
+  return {
+    id: p.id,
+    url: p.url,
+    offline: !!p.offline,
+    ...meta,
+    icon: customUrl(p, 'icon') || meta.icon,
+    background: customUrl(p, 'background') || meta.background,
+    logo: customUrl(p, 'logo') || meta.logo,
+    accent: c.accent || meta.accent,
+    customized: { icon: !!c.icon, background: !!c.background, logo: !!c.logo, accent: !!c.accent },
+    pending: isEmpty(p.pending) ? null : p.pending,
+    lastChanges: p.lastChanges || null,
+  };
+};
 
 ipcMain.handle('state:get', async () => {
   const s = await loadSettings();
@@ -417,7 +494,7 @@ ipcMain.handle('state:get', async () => {
     selectedPack: s.selectedPack || (s.packs[0] && s.packs[0].id) || null,
     accounts: s.accounts.map(publicAccount),
     selectedAccount: s.selectedAccount || null,
-    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu },
+    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch },
   };
 });
 
@@ -447,6 +524,7 @@ ipcMain.handle('packs:remove', async (_e, id, deleteFiles) => {
   if (s.selectedPack === id) s.selectedPack = s.packs[0] ? s.packs[0].id : null;
   await saveSettings();
   if (deleteFiles) await fsp.rm(path.join(INSTANCES, id), { recursive: true, force: true });
+  await fsp.rm(path.join(CUSTOM, id), { recursive: true, force: true });
   return { packs: s.packs.map(publicPack), selectedPack: s.selectedPack };
 });
 
@@ -483,6 +561,16 @@ ipcMain.handle('game:play', async (_e, packId) => {
     const customVersion = await ensureLoader(javaPath, manifest.minecraft, manifest.loader);
     await syncPack(manifest, pack.url, gameDir);
 
+    // guarda qué mods cambiaron respecto a la última vez, para la sección "Novedades"
+    const snap = snapshotMods(manifest.files);
+    if (pack.mods) {
+      const d = diffMods(pack.mods, snap);
+      if (!isEmpty(d)) pack.lastChanges = { ...d, version: manifest.version || '', date: new Date().toISOString() };
+    }
+    pack.mods = snap;
+    pack.pending = null;
+    await saveSettings();
+
     status('game.auth', {}, null);
     const authorization = await resolveAuthorization(acc);
 
@@ -504,19 +592,29 @@ ipcMain.handle('game:play', async (_e, packId) => {
     launcher.on('progress', (e) => {
       status('game.download', { type: e.type }, e.total ? (e.task / e.total) * 100 : null);
     });
+    let hidden = false;
     launcher.on('data', (l) => {
       log.write(l + '\n');
+      if (s.hideOnLaunch && !hidden && win && !win.isDestroyed()) {
+        hidden = true;
+        win.hide();
+      }
       send('game-state', 'running');
       status('game.running', {}, null);
     });
     launcher.on('close', (code) => {
-      log.end();
+      const killed = gameProc && gameProc.killedByUser;
+      gameProc = null;
       playing = false;
+      if (hidden && win && !win.isDestroyed()) win.show();
       send('game-state', 'idle');
-      if (code && code !== 0) {
-        status('game.crashed', { code }, 0);
-        send('game-error', { code });
-      } else status('ready', {}, 100);
+      // el log se termina de escribir antes de leer sus últimas líneas para el aviso de error
+      log.end(async () => {
+        if (code && code !== 0 && !killed) {
+          status('game.crashed', { code }, 0);
+          send('game-error', { code, tail: await tailFile(LOG_FILE) });
+        } else status('ready', {}, 100);
+      });
     });
 
     status('game.start', {}, null);
@@ -534,6 +632,7 @@ ipcMain.handle('game:play', async (_e, packId) => {
       })
     );
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
+    gameProc = proc;
     await saveSettings();
     return { ok: true };
   } catch (e) {
@@ -553,13 +652,112 @@ ipcMain.handle('game:openLog', async () => {
   else shell.openPath(game >= launcher ? LOG_FILE : LAUNCHER_LOG);
 });
 
+ipcMain.handle('game:kill', () => {
+  if (!gameProc) return { ok: false };
+  gameProc.killedByUser = true;
+  gameProc.kill();
+  return { ok: true };
+});
+
+// Busca en GitHub si hay un release más nuevo que esta versión. Sin internet o sin repo, no dice nada.
+ipcMain.handle('app:checkUpdate', async () => {
+  if (canAutoUpdate()) return updateReady ? { version: updateReady, ready: true } : null;
+  if (!config.repo) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${config.repo}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': `${config.id}-launcher` },
+    });
+    if (!res.ok) return null;
+    const r = await res.json();
+    if (!isNewer(r.tag_name, app.getVersion())) return null;
+    return { version: String(r.tag_name).replace(/^v/i, ''), url: r.html_url };
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle('settings:set', async (_e, patch) => {
   const next = {};
   if (patch.ramGb != null) next.ramGb = Math.min(32, Math.max(2, Number(patch.ramGb) || 4));
   if (patch.lang) next.lang = patch.lang === 'en' ? 'en' : 'es';
   if (patch.nvidiaGpu != null) next.nvidiaGpu = !!patch.nvidiaGpu;
+  if (patch.hideOnLaunch != null) next.hideOnLaunch = !!patch.hideOnLaunch;
   const s = await saveSettings(next);
   return { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
+});
+
+ipcMain.handle('server:status', async (_e, packId) => {
+  const s = await loadSettings();
+  const p = s.packs.find((x) => x.id === packId);
+  if (!p || !p.meta || !p.meta.server) return null;
+  return pingServer(p.meta.server);
+});
+
+// Personalizar un modpack solo en este PC. kind: icon | background | logo | accent.
+// value: undefined = elegir imagen, null = volver a la del modpack, "#rrggbb" = color.
+ipcMain.handle('packs:customize', async (_e, packId, kind, value) => {
+  const s = await loadSettings();
+  const p = s.packs.find((x) => x.id === packId);
+  if (!p || !['icon', 'background', 'logo', 'accent'].includes(kind)) return { ok: false };
+  p.custom ||= {};
+  const dir = path.join(CUSTOM, p.id);
+  const dropOld = async () => {
+    if (p.custom[kind] && kind !== 'accent') await fsp.rm(path.join(dir, p.custom[kind]), { force: true });
+    delete p.custom[kind];
+  };
+  if (kind === 'accent') {
+    if (value && !/^#[0-9a-f]{6}$/i.test(value)) return { ok: false };
+    if (value) p.custom.accent = value;
+    else delete p.custom.accent;
+  } else if (value === null) {
+    await dropOld();
+  } else {
+    const r = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      filters: [{ name: 'Imágenes', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    await fsp.mkdir(dir, { recursive: true });
+    await dropOld();
+    // nombre nuevo cada vez para que la interfaz no muestre la imagen anterior desde la caché
+    const name = `${kind}-${Date.now()}${path.extname(r.filePaths[0]).toLowerCase()}`;
+    await fsp.copyFile(r.filePaths[0], path.join(dir, name));
+    p.custom[kind] = name;
+  }
+  await saveSettings();
+  return { ok: true, packs: s.packs.map(publicPack) };
+});
+
+/* ---------------------------------------------------- Actualización del launcher */
+
+// Se actualizan solos el instalador de Windows y el AppImage; el .exe portable y el .tar.gz solo avisan
+const canAutoUpdate = () =>
+  !!autoUpdater &&
+  app.isPackaged &&
+  ((process.platform === 'win32' && !process.env.PORTABLE_EXECUTABLE_DIR) || (process.platform === 'linux' && !!process.env.APPIMAGE));
+let updateReady = null;
+
+function startAutoUpdate() {
+  if (!canAutoUpdate()) return;
+  autoUpdater.logger = { info: (m) => logLine('updater: ' + m), warn: (m) => logLine('updater: ' + m), error: (m) => logLine('updater ERROR: ' + m), debug() {} };
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true; // si no reinicia a mano, se instala al cerrar el launcher
+  autoUpdater.on('update-available', (i) => send('updater', { state: 'downloading', version: i.version, percent: 0 }));
+  autoUpdater.on('download-progress', (p) => send('updater', { state: 'downloading', percent: p.percent }));
+  autoUpdater.on('update-downloaded', (i) => {
+    updateReady = i.version;
+    send('updater', { state: 'ready', version: i.version });
+  });
+  autoUpdater.on('error', (e) => logLine('updater ERROR: ' + errText(e)));
+  const check = () => autoUpdater.checkForUpdates().catch((e) => logLine('updater ERROR: ' + errText(e)));
+  check();
+  setInterval(check, 4 * 3600 * 1000);
+}
+
+ipcMain.handle('app:installUpdate', () => {
+  if (!updateReady || playing) return { ok: false };
+  autoUpdater.quitAndInstall();
+  return { ok: true };
 });
 
 ipcMain.handle('system:info', () => ({ totalRamGb: Math.floor(os.totalmem() / 1073741824) }));
@@ -600,6 +798,18 @@ else {
       win.focus();
     }
   });
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => {
+    protocol.handle('cachu', (req) => {
+      const u = new URL(req.url);
+      const parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+      const file = path.resolve(CUSTOM, ...parts);
+      if (u.host !== 'custom' || parts.length !== 2 || !file.startsWith(path.resolve(CUSTOM) + path.sep)) {
+        return new Response('', { status: 404 });
+      }
+      return net.fetch(pathToFileURL(file).toString());
+    });
+    createWindow();
+    startAutoUpdate();
+  });
   app.on('window-all-closed', () => app.quit());
 }

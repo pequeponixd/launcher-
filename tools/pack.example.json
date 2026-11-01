@@ -8,5 +8,13 @@
   "loaderVersion": "",
   "ramGb": 4,
   "accent": "#46b3ff",
-  "keepLocal": ["options.txt", "servers.dat"]
+  "server": "play.tuservidor.com:25565",
+  "changelog": [
+    "Arreglado el crash al abrir el inventario",
+    "Nuevo evento de Halloween"
+  ],
+  "keepLocal": ["options.txt", "servers.dat"],
+  "externalUrls": {
+    "mods/mod-muy-grande-1.0.jar": "https://github.com/USUARIO/REPO/releases/download/TAG/mod-muy-grande-1.0.jar"
+  }
 }
