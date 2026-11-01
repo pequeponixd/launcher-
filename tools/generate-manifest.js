@@ -10,7 +10,7 @@
  *     pack.json            <- datos del modpack (ver pack.example.json)
  *     icon.png             <- icono de la barra lateral (opcional)
  *     background.png       <- fondo de la pantalla principal (opcional)
- *     logo.png             <- logo grande en el centro (opcional)
+ *     logo.png             <- logo grande en la pantalla principal (opcional)
  *     mods/*.jar
  *     config/fancymenu/... <- tu menú principal con el botón de entrar al server
  *     resourcepacks/ shaderpacks/ ...
@@ -54,10 +54,15 @@ function walk(dir) {
 }
 const sha1 = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex');
 
+// Archivos de más de 100 MB que viven en un Release: "externalUrls": { "mods/x.jar": "https://…" }
+const external = pack.externalUrls || {};
 const files = [];
 const add = (f) => {
   if (path.basename(f).startsWith('.')) return;
-  files.push({ path: path.relative(src, f).split(path.sep).join('/'), sha1: sha1(f), size: fs.statSync(f).size });
+  const rel = path.relative(src, f).split(path.sep).join('/');
+  const entry = { path: rel, sha1: sha1(f), size: fs.statSync(f).size };
+  if (external[rel]) entry.url = external[rel];
+  files.push(entry);
 };
 for (const d of SYNC_DIRS) {
   const full = path.join(src, d);
@@ -79,6 +84,8 @@ const manifest = {
   background: ['background.png', 'background.jpg', 'background.webp'].find((f) => fs.existsSync(path.join(src, f))),
   logo: fs.existsSync(path.join(src, 'logo.png')) ? 'logo.png' : undefined,
   accent: pack.accent,
+  server: pack.server, // "ip:puerto" para mostrar si el servidor está prendido
+  changelog: pack.changelog, // notas de esta versión: texto o lista de líneas
   ramGb: pack.ramGb,
   keepLocal: pack.keepLocal || ['options.txt', 'servers.dat'],
   managedDirs: pack.managedDirs || ['mods'],

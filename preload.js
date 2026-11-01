@@ -17,9 +17,13 @@ contextBridge.exposeInMainWorld('api', {
   openLog: inv('game:openLog'),
   killGame: inv('game:kill'),
   checkUpdate: inv('app:checkUpdate'),
+  installUpdate: inv('app:installUpdate'),
+  serverStatus: inv('server:status'),
+  customize: inv('packs:customize'),
   setSettings: inv('settings:set'),
   systemInfo: inv('system:info'),
   onStatus: (cb) => ipcRenderer.on('status', (_e, d) => cb(d)),
   onGameState: (cb) => ipcRenderer.on('game-state', (_e, s) => cb(s)),
   onGameError: (cb) => ipcRenderer.on('game-error', (_e, d) => cb(d)),
+  onUpdater: (cb) => ipcRenderer.on('updater', (_e, d) => cb(d)),
 });

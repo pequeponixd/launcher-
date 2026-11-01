@@ -135,12 +135,43 @@ html[lang=en] .pack.offline .n small::after { content: " · offline"; }
   background: #24311f; border: 1px solid #3d5a33; color: #b9e2a8; text-decoration: none; font-size: 13px;
 }
 .update:hover { background: #2c3d26; }
+.update.ready { cursor: pointer; background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.update.ready:hover { filter: brightness(1.1); background: var(--accent); }
+.custom-row .btns { display: flex; gap: 6px; align-items: center; }
+.custom-row .btn { height: 30px; padding: 0 10px; font-size: 13px; }
+.custom-row input[type=color] { width: 34px; height: 30px; border: 1px solid var(--line); border-radius: var(--r); background: #0f0f0f; padding: 2px; cursor: pointer; }
 
-.hero { position: relative; z-index: 1; margin-top: auto; padding: 0 40px 28px; max-width: 760px; }
+.stage-main { position: relative; z-index: 1; margin-top: auto; display: flex; align-items: flex-end; gap: 28px; padding: 0 40px 28px; min-height: 0; }
+.hero { flex: 1; min-width: 0; max-width: 760px; }
 .hero img { max-width: min(520px, 90%); max-height: 180px; display: block; margin-bottom: 10px; }
 .hero h1 { font-size: 52px; font-weight: 800; line-height: 1.05; letter-spacing: -.5px; }
 .hero #hero-desc { margin-top: 8px; font-size: 15px; color: #cfcfcf; max-width: 560px; }
 .chips { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.server { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 8px; border-radius: 3px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.1); color: #d6d6d6; }
+.server::before { content: ""; width: 8px; height: 8px; background: #6b6b6b; }
+.server.on::before { background: #4cc35d; }
+.server.on { color: #c9efcf; }
+
+/* Novedades: qué mods cambiaron y notas del autor */
+.news {
+  width: 300px; flex: none; max-height: 52vh; display: flex; flex-direction: column;
+  background: rgba(20,20,20,.92); border: 1px solid var(--line); border-radius: var(--r);
+}
+.news header { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.news header b { display: block; font-size: 13px; }
+.news header small { color: var(--muted); font-size: 12px; }
+.news .body { overflow-y: auto; padding: 8px 12px 10px; font-size: 12.5px; user-select: text; }
+.news h5 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 8px 0 4px; }
+.news h5:first-child { margin-top: 2px; }
+.news ul { list-style: none; }
+.news li { padding: 2px 0 2px 16px; position: relative; word-break: break-word; color: #d6d6d6; }
+.news li::before { position: absolute; left: 0; font-weight: 700; }
+.news li.add::before { content: "+"; color: #4cc35d; }
+.news li.up::before { content: "↑"; color: #5aa9e6; }
+.news li.rm::before { content: "−"; color: #e06c5a; }
+.news li.note::before { content: "•"; color: var(--muted); }
+.news li small { color: var(--muted); }
+
 .chip { font-size: 12px; padding: 3px 8px; border-radius: 3px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); color: #d6d6d6; }
 
 .dock {

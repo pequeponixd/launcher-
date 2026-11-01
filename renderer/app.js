@@ -49,6 +49,12 @@ const T = {
     crashTitle: 'Minecraft se cerró con error',
     crashSub: 'Código {code}. Estas son las últimas líneas del log; si pides ayuda, copia y pega esto.',
     copy: 'Copiar', copied: 'Copiado',
+    serverOn: 'En línea · {online}/{max} jugadores', serverOff: 'Servidor apagado', serverChecking: 'Consultando servidor…',
+    newsPending: 'Actualización del modpack', newsPendingSub: 'Se descarga al darle Jugar',
+    newsLast: 'Novedades', newsNotes: 'Notas', newsAdded: 'Agregados', newsUpdated: 'Actualizados', newsRemoved: 'Quitados',
+    updDownloading: 'Descargando actualización del launcher… {p}%', updReady: 'Reiniciar para actualizar a {v}',
+    secCustom: 'Personalizar (solo en este PC)', icon: 'Icono', background: 'Fondo', logo: 'Logo', color: 'Color',
+    change: 'Cambiar', reset: 'Restaurar', before: 'antes',
   },
   en: {
     'login.title': 'Sign in',
@@ -96,6 +102,12 @@ const T = {
     crashTitle: 'Minecraft closed with an error',
     crashSub: 'Code {code}. These are the last lines of the log; if you ask for help, copy and paste this.',
     copy: 'Copy', copied: 'Copied',
+    serverOn: 'Online · {online}/{max} players', serverOff: 'Server offline', serverChecking: 'Checking server…',
+    newsPending: 'Modpack update', newsPendingSub: 'Downloads when you press Play',
+    newsLast: "What's new", newsNotes: 'Notes', newsAdded: 'Added', newsUpdated: 'Updated', newsRemoved: 'Removed',
+    updDownloading: 'Downloading launcher update… {p}%', updReady: 'Restart to update to {v}',
+    secCustom: 'Customize (this PC only)', icon: 'Icon', background: 'Background', logo: 'Logo', color: 'Color',
+    change: 'Change', reset: 'Reset', before: 'was',
   },
 };
 
@@ -150,6 +162,7 @@ function retrigger(el, cls) {
 }
 
 let lastStagePack = null;
+let lastServerPack;
 let prevGameState = 'idle';
 
 function renderRail() {
@@ -230,11 +243,55 @@ function renderStage() {
   $('hero-desc').textContent = p ? p.description || '' : t('emptySub');
   const chips = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader, p.version && 'v' + p.version] : [];
   $('hero-meta').innerHTML = chips.filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
+  renderNews(p);
+  if (stagePackId !== lastServerPack) refreshServer();
   $('btn-play').disabled = !p || busy;
   $('btn-folder').disabled = !p;
   if (!busy) $('status').textContent = p ? (p.offline ? t('offlinePack') : t('ready')) : '';
   document.title = `${S.appName} Launcher ${S.version}`;
 }
+
+/* ------------------------------------------------------------ novedades */
+function renderNews(p) {
+  const box = $('news');
+  const ch = p && (p.pending || p.lastChanges);
+  const notes = (p?.changelog || []).filter((l) => l.trim());
+  if (!ch && !notes.length) return box.classList.add('hidden');
+  const list = (cls, items) => items.map((x) => `<li class="${cls}">${x}</li>`).join('');
+  const date = p.lastChanges?.date ? new Date(p.lastChanges.date).toLocaleDateString(lang) : '';
+  const title = p.pending ? t('newsPending') : t('newsLast') + (p.version ? ` · v${esc(p.version)}` : '');
+  const sub = p.pending ? t('newsPendingSub') : date;
+  let body = '';
+  if (notes.length) body += `<h5>${t('newsNotes')}</h5><ul>${list('note', notes.map(esc))}</ul>`;
+  if (ch?.added.length) body += `<h5>${t('newsAdded')}</h5><ul>${list('add', ch.added.map(esc))}</ul>`;
+  if (ch?.updated.length) {
+    // si cambió el nombre del archivo se muestra "antes → ahora"; si no, solo el nombre
+    const up = ch.updated.map((u) => (u.from === u.to ? esc(u.to) : `${esc(u.to)} <small>(${t('before')} ${esc(u.from)})</small>`));
+    body += `<h5>${t('newsUpdated')}</h5><ul>${list('up', up)}</ul>`;
+  }
+  if (ch?.removed.length) body += `<h5>${t('newsRemoved')}</h5><ul>${list('rm', ch.removed.map(esc))}</ul>`;
+  box.innerHTML = `<header><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</header><div class="body">${body}</div>`;
+  box.classList.remove('hidden');
+}
+
+/* ------------------------------------------------------------ estado del servidor */
+async function refreshServer() {
+  const p = curPack();
+  lastServerPack = p ? p.id : null;
+  const el = $('server');
+  if (!p?.server) return el.classList.add('hidden');
+  if (el.dataset.pack !== p.id) {
+    el.dataset.pack = p.id;
+    el.className = 'server';
+    el.textContent = t('serverChecking');
+  }
+  const r = await api.serverStatus(p.id).catch(() => null);
+  if (curPack()?.id !== p.id) return; // cambió de modpack mientras esperaba
+  el.classList.toggle('on', !!r?.online);
+  el.textContent = r?.online ? t('serverOn', r.players) : t('serverOff');
+  el.title = r?.online ? [r.motd, r.version, r.latency + ' ms'].filter(Boolean).join('\n') : '';
+}
+setInterval(() => S?.accounts.length && !document.hidden && refreshServer(), 60000);
 
 /* ------------------------------------------------------------ progreso */
 api.onStatus(({ key, params, percent }) => {
@@ -454,7 +511,12 @@ $('btn-settings').onclick = async () => {
     <div class="row"><span>${t('sound')}</span>${toggle('sfx-on')}</div>
     <div class="row"><span>${t('volume')}</span><b id="sfx-val">${Math.round(sfx.getVol() * 100)}%</b></div>
     <input type="range" id="sfx-vol" min="0" max="100" step="5" value="${Math.round(sfx.getVol() * 100)}">
-    ${p ? `<h4>${t('secPack')}</h4><div class="row"><span>${esc(p.name)}</span><button class="btn danger" id="d-remove">${t('removePack')}</button></div>` : ''}
+    ${p ? `<h4>${t('secCustom')}</h4>
+      ${['icon', 'background', 'logo'].map((k) => `<div class="row custom-row"><span>${t(k)}</span><span class="btns">
+        ${p.customized?.[k] ? `<button class="btn" data-reset="${k}">${t('reset')}</button>` : ''}<button class="btn" data-pick="${k}">${t('change')}</button></span></div>`).join('')}
+      <div class="row custom-row"><span>${t('color')}</span><span class="btns">
+        ${p.customized?.accent ? `<button class="btn" data-reset="accent">${t('reset')}</button>` : ''}<input type="color" id="d-accent" value="${/^#[0-9a-f]{6}$/i.test(p.accent || '') ? p.accent : '#e0112b'}"></span></div>
+      <h4>${t('secPack')}</h4><div class="row"><span>${esc(p.name)}</span><button class="btn danger" id="d-remove">${t('removePack')}</button></div>` : ''}
     <div class="actions"><button class="btn primary" id="d-ok">${t('close')}</button></div>`);
   $('d-lang').value = lang;
   $('sfx-on').checked = sfx.isOn();
@@ -476,6 +538,19 @@ $('btn-settings').onclick = async () => {
   $('d-lang').onchange = (e) => { setLang(e.target.value); $('btn-settings').click(); };
   $('d-ok').onclick = closeDialog;
   if (p) {
+    // tras cada cambio se actualiza todo y se vuelve a abrir Ajustes para que se vea el estado nuevo
+    const custom = async (kind, value) => {
+      const r = await api.customize(p.id, kind, value);
+      if (!r.ok) return;
+      S.packs = r.packs;
+      renderRail();
+      renderStage();
+      $('btn-settings').click();
+    };
+    document.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => custom(b.dataset.pick)));
+    document.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = () => custom(b.dataset.reset, null)));
+    $('d-accent').oninput = (e) => document.documentElement.style.setProperty('--accent', e.target.value);
+    $('d-accent').onchange = (e) => custom('accent', e.target.value);
     $('d-remove').onclick = () => {
       dialog(`<h3>${t('removePack')}</h3><p class="sub">${t('removeSure', { name: esc(p.name) })}</p>
         <div class="actions"><button class="btn" id="d-cancel">${t('cancel')}</button><button class="btn" id="d-keep">${t('removeKeep')}</button><button class="btn danger" id="d-del">${t('removeDelete')}</button></div>`);
@@ -494,6 +569,22 @@ $('btn-settings').onclick = async () => {
   }
 };
 
+/* ------------------------------------------------------------ actualización del launcher */
+function showUpdate({ state, version, percent }) {
+  const a = $('update');
+  a.removeAttribute('href');
+  a.classList.remove('hidden');
+  a.classList.toggle('ready', state === 'ready');
+  if (state === 'ready') {
+    a.textContent = t('updReady', { v: version });
+    a.onclick = () => api.installUpdate();
+  } else {
+    a.textContent = t('updDownloading', { p: Math.round(percent || 0) });
+    a.onclick = null;
+  }
+}
+api.onUpdater(showUpdate);
+
 /* ------------------------------------------------------------ inicio */
 (async function init() {
   S = await api.getState();
@@ -508,6 +599,7 @@ $('btn-settings').onclick = async () => {
   // aviso discreto si hay una versión nueva del launcher en GitHub
   api.checkUpdate().then((u) => {
     if (!u) return;
+    if (u.ready) return showUpdate({ state: 'ready', version: u.version });
     const a = $('update');
     a.href = u.url;
     a.textContent = t('update', { v: u.version });
