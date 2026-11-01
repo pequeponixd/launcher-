@@ -143,7 +143,7 @@ html[lang=en] .pack.offline .n small::after { content: " · offline"; }
 
 .stage-main { position: relative; z-index: 1; margin-top: auto; display: flex; align-items: flex-end; gap: 28px; padding: 0 40px 28px; min-height: 0; }
 .hero { flex: 1; min-width: 0; max-width: 760px; }
-.hero img { max-width: min(520px, 90%); max-height: 180px; display: block; margin-bottom: 10px; }
+.hero img { max-width: min(560px, 90%); max-height: 160px; display: block; margin-bottom: 10px; image-rendering: pixelated; }
 .hero h1 { font-size: 52px; font-weight: 800; line-height: 1.05; letter-spacing: -.5px; }
 .hero #hero-desc { margin-top: 8px; font-size: 15px; color: #cfcfcf; max-width: 560px; }
 .chips { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
