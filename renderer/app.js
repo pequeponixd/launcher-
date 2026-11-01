@@ -29,7 +29,7 @@ const T = {
     addPack: 'Agregar modpack',
     addPackSub: 'Pega el enlace del manifest.json del modpack o escribe usuario/repositorio de GitHub.',
     add: 'Agregar', cancel: 'Cancelar', close: 'Cerrar', save: 'Guardar',
-    settings: 'Ajustes', ram: 'Memoria RAM', openFolder: 'Abrir carpeta del juego', openLog: 'Ver último log',
+    settings: 'Ajustes', ram: 'Memoria RAM', gpu: 'Usar gráfica NVIDIA', gpuHint: 'Solo Linux con gráfica Intel/AMD + NVIDIA. Actívalo si en el juego (F3) aparece Intel o Mesa en vez de tu NVIDIA.', openFolder: 'Abrir carpeta del juego', openLog: 'Ver último log',
     removePack: 'Quitar modpack', removeSure: '¿Quitar "{name}"? También puedes borrar sus archivos del disco.',
     removeKeep: 'Quitar (conservar archivos)', removeDelete: 'Quitar y borrar archivos',
     noAccount: 'Primero inicia sesión.', noPack: 'No hay modpack seleccionado.',
@@ -65,7 +65,7 @@ const T = {
     addPack: 'Add modpack',
     addPackSub: "Paste the modpack's manifest.json link or type a GitHub user/repository.",
     add: 'Add', cancel: 'Cancel', close: 'Close', save: 'Save',
-    settings: 'Settings', ram: 'RAM', openFolder: 'Open game folder', openLog: 'View last log',
+    settings: 'Settings', ram: 'RAM', gpu: 'Use NVIDIA GPU', gpuHint: 'Linux only, with Intel/AMD + NVIDIA graphics. Turn it on if the game (F3) shows Intel or Mesa instead of your NVIDIA.', openFolder: 'Open game folder', openLog: 'View last log',
     removePack: 'Remove modpack', removeSure: 'Remove "{name}"? You can also delete its files from disk.',
     removeKeep: 'Remove (keep files)', removeDelete: 'Remove and delete files',
     noAccount: 'Please log in first.', noPack: 'No modpack selected.',
@@ -358,6 +358,7 @@ $('btn-settings').onclick = async () => {
   dialog(`<h3>${t('settings')}</h3>
     <div class="row"><span>${t('ram')}</span><b id="ram-val">${S.settings.ramGb} GB</b></div>
     <input type="range" id="ram" min="2" max="${max}" step="1" value="${Math.min(S.settings.ramGb, max)}">
+    ${S.platform === 'linux' ? `<div class="row"><span title="${t('gpuHint')}">${t('gpu')}</span><label class="switch"><input type="checkbox" id="gpu-on"><span class="slider"></span></label></div>` : ''}
     <div class="row"><span>${t('lang')}</span><select id="d-lang"><option value="es">Español</option><option value="en">English</option></select></div>
     <div class="row"><span>${t('sound')}</span><label class="switch"><input type="checkbox" id="sfx-on"><span class="slider"></span></label></div>
     <div class="row"><span>${t('volume')}</span><b id="sfx-val">${Math.round(sfx.getVol() * 100)}%</b></div>
@@ -375,6 +376,10 @@ $('btn-settings').onclick = async () => {
   $('sfx-vol').onchange = () => sfx.click();
   $('ram').oninput = (e) => ($('ram-val').textContent = e.target.value + ' GB');
   $('ram').onchange = async (e) => { S.settings.ramGb = Number(e.target.value); await api.setSettings({ ramGb: e.target.value }); };
+  if ($('gpu-on')) {
+    $('gpu-on').checked = !!S.settings.nvidiaGpu;
+    $('gpu-on').onchange = async (e) => { S.settings.nvidiaGpu = e.target.checked; await api.setSettings({ nvidiaGpu: e.target.checked }); };
+  }
   $('d-lang').onchange = (e) => { setLang(e.target.value); $('btn-settings').click(); };
   $('d-folder').onclick = () => api.openFolder(p ? p.id : null);
   $('d-log').onclick = () => api.openLog();
