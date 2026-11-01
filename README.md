@@ -1,4 +1,4 @@
-# Cachusafio Launcher 2.0
+# Cachusafio Launcher 2.1
 
 Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo abren, inician sesión (cuenta Microsoft u offline) y le dan **Play**. No hay IP en el launcher: el botón para entrar al servidor lo pones tú en el menú principal con **FancyMenu**, dentro del modpack.
 

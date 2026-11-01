@@ -329,7 +329,11 @@ test('sync: lo más pesado se pide primero y la barra termina en 100 sin pasarse
   await withServer(routes, async (srv, dir) => {
     const st = [];
     const m = manifestFor([...small.map((s, i) => [`config/s${i}.json`, s]), ['mods/big.jar', big]]);
-    await syncPack(m, `${srv.base}/P/manifest.json`, dir, quiet(st));
+    // Con una sola descarga a la vez el orden de llegada al servidor es determinista; con 4 en paralelo
+    // dependía de qué conexión se abría antes y la prueba fallaba al azar bajo carga.
+    const io = quiet(st);
+    io.tuning.concurrency = 1;
+    await syncPack(m, `${srv.base}/P/manifest.json`, dir, io);
     assert.equal(srv.log[0].url, '/P/mods/big.jar', 'el pesado va primero');
     const pcts = st.filter((s) => s.key === 'pack.download').map((s) => s.percent);
     assert.ok(pcts.every((p) => p >= 0 && p <= 100), 'porcentajes fuera de rango: ' + pcts);

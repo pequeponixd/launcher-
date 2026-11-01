@@ -1,6 +1,6 @@
 {
   "name": "cachusafio-launcher",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Launcher de modpacks de Cachusafio",
   "author": "Cachusafio",
   "main": "main.js",
@@ -33,6 +33,7 @@
       "main.js",
       "downloader.js",
       "packsync.js",
+      "jvmargs.js",
       "preload.js",
       "config.json",
       "renderer/**/*",

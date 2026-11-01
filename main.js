@@ -11,6 +11,7 @@ const extract = require('extract-zip');
 const tar = require('tar');
 const { downloadFile } = require('./downloader');
 const { syncPack: syncPackFiles } = require('./packsync');
+const { loadJvmArgs } = require('./jvmargs');
 
 const config = require('./config.json');
 
@@ -488,6 +489,14 @@ ipcMain.handle('game:play', async (_e, packId) => {
     const version = { number: manifest.minecraft, type: 'release' };
     if (customVersion) version.custom = customVersion;
 
+    // Forge/NeoForge 1.17+ necesita los argumentos de Java de su JSON (--add-opens, -p, --add-modules…);
+    // minecraft-launcher-core no los lee y sin ellos el juego se cierra al instante con código 1.
+    let customArgs = [];
+    if (customVersion && ['forge', 'neoforge'].includes(manifest.loader.type)) {
+      customArgs = await loadJvmArgs(ROOT, customVersion);
+      logLine(`argumentos de Java del loader: ${customArgs.length}${customArgs.length ? '' : ' (¡ninguno! Forge puede no arrancar)'}`);
+    }
+
     const launcher = new Client();
     const log = fs.createWriteStream(LOG_FILE);
     launcher.on('debug', (l) => log.write(l + '\n'));
@@ -516,6 +525,7 @@ ipcMain.handle('game:play', async (_e, packId) => {
       javaPath,
       version,
       memory: { max: `${ramGb}G`, min: '1G' },
+      customArgs,
       overrides: { gameDirectory: gameDir },
     });
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
@@ -530,10 +540,12 @@ ipcMain.handle('game:play', async (_e, packId) => {
   }
 });
 
+// Abre el log más reciente: el del juego (latest.log) si se llegó a lanzar, o el del launcher si falló antes.
 ipcMain.handle('game:openLog', async () => {
-  if (await exists(LAUNCHER_LOG)) shell.openPath(LAUNCHER_LOG);
-  else if (await exists(LOG_FILE)) shell.openPath(LOG_FILE);
-  else shell.openPath(ROOT);
+  const mtime = (f) => fsp.stat(f).then((s) => s.mtimeMs, () => -1);
+  const [game, launcher] = await Promise.all([mtime(LOG_FILE), mtime(LAUNCHER_LOG)]);
+  if (game < 0 && launcher < 0) shell.openPath(ROOT);
+  else shell.openPath(game >= launcher ? LOG_FILE : LAUNCHER_LOG);
 });
 
 ipcMain.handle('settings:set', async (_e, patch) => {
