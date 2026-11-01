@@ -5,12 +5,12 @@ const fsp = fs.promises;
 const crypto = require('crypto');
 const os = require('os');
 const { spawn } = require('child_process');
-const { Readable } = require('stream');
-const { pipeline } = require('stream/promises');
 const { Client } = require('minecraft-launcher-core');
 const { Auth } = require('msmc');
 const extract = require('extract-zip');
 const tar = require('tar');
+const { downloadFile } = require('./downloader');
+const { syncPack: syncPackFiles } = require('./packsync');
 
 const config = require('./config.json');
 
@@ -82,42 +82,14 @@ function send(channel, data) {
 // Los mensajes viajan como clave + parámetros; la interfaz los traduce
 const status = (key, params = {}, percent = null) => send('status', { key, params, percent });
 
-async function sha1(file) {
-  return new Promise((resolve, reject) => {
-    const h = crypto.createHash('sha1');
-    fs.createReadStream(file)
-      .on('data', (c) => h.update(c))
-      .on('end', () => resolve(h.digest('hex')))
-      .on('error', reject);
-  });
-}
-
+// Descarga un archivo suelto (Java, instalador de Forge…): reanuda si se corta, detecta cuelgues y reintenta.
+// Los archivos del modpack usan packsync.js, que además verifica hash y usa varias conexiones.
 async function download(url, dest, onChunk) {
-  let lastErr;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const res = await fetch(url, { headers: { 'accept-encoding': 'identity' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status} → ${url}`);
-      await fsp.mkdir(path.dirname(dest), { recursive: true });
-      const tmp = dest + '.part';
-      const expected = Number(res.headers.get('content-length')) || 0;
-      let got = 0;
-      const body = Readable.fromWeb(res.body);
-      body.on('data', (c) => {
-        got += c.length;
-        if (onChunk) onChunk(c.length);
-      });
-      await pipeline(body, fs.createWriteStream(tmp));
-      if (expected && got !== expected) throw new Error(`Descarga incompleta (${got}/${expected} bytes) → ${url}`);
-      await fsp.rename(tmp, dest);
-      return;
-    } catch (e) {
-      lastErr = e;
-      await fsp.rm(dest + '.part', { force: true });
-      logLine(`download intento ${attempt} falló: ${errText(e)}`);
-    }
-  }
-  throw lastErr;
+  await downloadFile(url, dest, {
+    attempts: 4,
+    onBytes: onChunk ? (n) => n > 0 && onChunk(n) : undefined, // el progreso de Java solo suma
+    onRetry: (r) => logLine(`download ${path.basename(dest)}: intento ${r.attempt}/${r.max} falló: ${r.error.message}`),
+  });
 }
 
 function run(cmd, args, opts = {}) {
@@ -319,69 +291,9 @@ function metaOf(m, url) {
   };
 }
 
-function fileUrl(manifestUrl, f) {
-  if (f.url) return f.url;
-  const p = f.path.split('/').map(encodeURIComponent).join('/');
-  return new URL(p, manifestUrl).href;
-}
-
-const isKept = (keep, p) => (keep || []).some((k) => (k.endsWith('/') ? p.startsWith(k) : p === k));
-
-async function walk(dir) {
-  const out = [];
-  if (!(await exists(dir))) return out;
-  for (const e of await fsp.readdir(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) out.push(...(await walk(p)));
-    else out.push(p);
-  }
-  return out;
-}
-
-async function syncPack(manifest, manifestUrl, gameDir) {
-  status('pack.check', {}, null);
-  const keep = manifest.keepLocal || [];
-  const pending = [];
-  let n = 0;
-  for (const f of manifest.files) {
-    // Rutas seguras: nada fuera de la carpeta de la instancia
-    const dest = path.resolve(gameDir, f.path);
-    if (!dest.startsWith(path.resolve(gameDir) + path.sep)) throw new Error(`Ruta no permitida en el manifest: ${f.path}`);
-    n++;
-    if (isKept(keep, f.path) && (await exists(dest))) continue;
-    let ok = false;
-    if (await exists(dest)) ok = (await sha1(dest)) === f.sha1;
-    if (!ok) pending.push({ ...f, dest });
-    if (n % 15 === 0) status('pack.verify', { done: n, total: manifest.files.length }, (n / manifest.files.length) * 100);
-  }
-
-  // descargas en paralelo (4 a la vez)
-  const totalBytes = pending.reduce((a, f) => a + (f.size || 0), 0) || 1;
-  let doneBytes = 0;
-  let doneFiles = 0;
-  const queue = [...pending];
-  const worker = async () => {
-    while (queue.length) {
-      const f = queue.shift();
-      await download(fileUrl(manifestUrl, f), f.dest, (c) => {
-        doneBytes += c;
-        status('pack.download', { done: doneFiles, total: pending.length, file: path.basename(f.path) }, (doneBytes / totalBytes) * 100);
-      });
-      if ((await sha1(f.dest)) !== f.sha1) throw new Error(`Archivo corrupto: ${f.path}. Intenta de nuevo.`);
-      doneFiles++;
-    }
-  };
-  await Promise.all([worker(), worker(), worker(), worker()]);
-
-  // limpiar carpetas administradas (por defecto solo mods/)
-  const wanted = new Set(manifest.files.map((f) => path.resolve(gameDir, f.path)));
-  for (const d of manifest.managedDirs || ['mods']) {
-    for (const file of await walk(path.join(gameDir, d))) {
-      const r = path.relative(gameDir, file).split(path.sep).join('/');
-      if (!wanted.has(path.resolve(file)) && !isKept(keep, r)) await fsp.rm(file, { force: true });
-    }
-  }
-}
+// La sincronización (verificar, descargar, limpiar) vive en packsync.js para poder probarla sin Electron.
+const syncPack = (manifest, manifestUrl, gameDir) =>
+  syncPackFiles(manifest, manifestUrl, gameDir, { status, log: logLine });
 
 /* --------------------------------------------------------------- Cuentas */
 
