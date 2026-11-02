@@ -32,6 +32,13 @@ test('cada bloque de acciones apunta a una acción que existe y las llaves cierr
   assert.equal(buildTitleLayout({ server: 'x' }), buildTitleLayout({ server: 'x' })); // estable
 });
 
+test('los botones usan las texturas si existen', () => {
+  const t = buildTitleLayout({ buttons: { play: ['btn-play.png', 'btn-play-hover.png'], small: ['btn.png', 'btn-hover.png'] } });
+  assert.match(t, /backgroundnormal = \[source:local\]\/config\/fancymenu\/assets\/btn-play\.png/);
+  assert.match(t, /backgroundhovered = \[source:local\]\/config\/fancymenu\/assets\/btn-hover\.png/);
+  assert.doesNotMatch(buildTitleLayout({}), /backgroundnormal/);
+});
+
 test('installMenu copia imágenes, escribe el layout y activa el menú principal', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm-'));
   // PNG mínimo de 4x2 (solo importa la cabecera)

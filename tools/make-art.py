@@ -8,7 +8,10 @@ Crea:
   launcher-icon.png   512x512  icono de la app (build/icon.png)
   icon.png            256x256  icono del modpack (ruleta)
   logo.png           ~1220x200 logo "CACHUSAFIO" con fondo transparente
-  background.png     1920x1080 atardecer con fogata
+  background.png     1920x1080 noche de luna con aurora, lago y cabaña
+  background-atardecer.png     el fondo anterior (atardecer con fogata)
+  btn-play*.png       200x24   botón principal del menú del juego (normal y al pasar el mouse)
+  btn*.png            98x20    botones secundarios (Opciones, Salir)
 
 Todo se dibuja en una cuadrícula pequeña y se agranda sin suavizar, por eso se ve "pixelado".
 Cambia los colores de arriba y vuelve a ejecutarlo. Requiere Pillow.
@@ -240,7 +243,7 @@ def logo(title='CACHUSAFIO', subtitle=None):
 
 
 # ------------------------------------------------------------------ fondo
-def background():
+def background_sunset():
     W, H = 240, 135  # ×8 = 1920×1080
     rnd = random.Random(42)
     img = Image.new('RGB', (W, H))
@@ -362,6 +365,204 @@ def background():
     return upscale(img, 8)
 
 
+# ------------------------------------------------------------------ botones del menú del juego
+def button(w, h, style='primary', hover=False, seed=5):
+    """Textura de botón a 1 píxel = 1 unidad de la interfaz de Minecraft (se ve nítida a cualquier escala)."""
+    rnd = random.Random(seed + (1 if hover else 0))
+    if style == 'primary':
+        face, light, dark = (mix(RED, RED_LIGHT, 0.5), mix(RED_LIGHT, WHITE, 0.3), RED_DARK) if hover else (RED, RED_LIGHT, RED_DARK)
+        edge = WHITE if hover else INK
+    else:
+        face, light, dark = ((64, 56, 58), (92, 82, 84), (34, 29, 31)) if hover else ((44, 38, 40), (66, 58, 60), (26, 22, 24))
+        edge = RED if hover else INK
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            corner = (x in (0, w - 1)) and (y in (0, h - 1))
+            if corner:
+                continue  # esquinas recortadas, como los botones de Minecraft
+            if x in (0, w - 1) or y in (0, h - 1):
+                px[x, y] = hexa(edge)
+            elif y == 1:
+                px[x, y] = hexa(jitter(light, rnd, 4))  # brillo arriba
+            elif y >= h - 3:
+                px[x, y] = hexa(jitter(dark, rnd, 4))  # sombra abajo: da volumen
+            else:
+                px[x, y] = hexa(jitter(face, rnd, 6))
+    return img
+
+
+# ------------------------------------------------------------------ fondo: noche en el lago
+def background():
+    W, H = 240, 135  # ×8 = 1920×1080
+    rnd = random.Random(7)
+    img = Image.new('RGB', (W, H))
+    px = img.load()
+    water = 86  # línea del agua
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    stops = [(0.0, (6, 8, 24)), (0.45, (14, 24, 54)), (0.8, (28, 52, 84)), (1.0, (52, 86, 112))]
+
+    def sky(t):
+        for i in range(len(stops) - 1):
+            a, b = stops[i], stops[i + 1]
+            if t <= b[0]:
+                return mix(a[1], b[1], (t - a[0]) / (b[0] - a[0]))
+        return stops[-1][1]
+
+    bands = 12
+    for y in range(water):
+        for x in range(W):
+            f = y / water * bands
+            step = math.floor(f) + (1 if (f % 1) * 16 > bayer[y % 4][x % 4] else 0)
+            px[x, y] = sky(min(step, bands) / bands)
+
+    # aurora: cortinas verticales, con el borde de abajo más brillante y desvaneciéndose hacia arriba
+    for x in range(W):
+        bottom = int(36 + 6 * math.sin(x * 0.05) + 3 * math.sin(x * 0.13 + 0.7))
+        length = int(12 + 9 * (0.5 + 0.5 * math.sin(x * 0.27 + math.sin(x * 0.05) * 2)))
+        strength = 0.42 + 0.2 * math.sin(x * 0.08 + 1) + 0.1 * math.sin(x * 0.31)
+        for i in range(length):
+            y = bottom - i
+            if not 0 <= y < water:
+                continue
+            a = strength * (1 - i / length) ** 1.3
+            if a < 0.12 and (x + y) % 2:
+                continue  # tramado en las puntas, en vez de degradado suave
+            px[x, y] = mix(px[x, y], (110, 240, 170) if i < 3 else (70, 180, 170), min(0.65, a))
+
+    for _ in range(110):  # estrellas
+        x, y = rnd.randrange(W), rnd.randrange(int(water * 0.85))
+        px[x, y] = mix(px[x, y], (220, 225, 255), 0.9)
+    for _ in range(6):  # estrellas grandes en cruz
+        x, y = rnd.randrange(2, W - 2), rnd.randrange(2, 40)
+        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+            px[x + dx, y + dy] = (255, 250, 230) if (dx, dy) == (0, 0) else mix(px[x + dx, y + dy], (200, 210, 255), 0.6)
+
+    # luna llena con cráteres, arriba a la derecha
+    mx, my, mr = 186, 26, 12
+    for y in range(my - mr - 1, my + mr + 2):
+        for x in range(mx - mr - 1, mx + mr + 2):
+            d = math.hypot(x - mx, y - my)
+            if d <= mr:
+                c = mix((236, 236, 214), (196, 198, 184), max(0, (x - mx + y - my) / (2 * mr)))
+                px[x, y] = jitter(c, rnd, 3)
+            elif d <= mr + 3:
+                px[x, y] = mix(px[x, y], (120, 140, 170), 0.25)  # halo
+    for cx, cy, cr in ((182, 22, 3), (191, 30, 2), (184, 32, 1.5), (192, 21, 1.5)):
+        for y in range(int(cy - cr), int(cy + cr) + 1):
+            for x in range(int(cx - cr), int(cx + cr) + 1):
+                if math.hypot(x - cx, y - cy) <= cr:
+                    px[x, y] = (178, 180, 168)
+
+    def ridge(base, amp, seed, freq):
+        r = random.Random(seed)
+        ph = [r.random() * 6.28 for _ in range(3)]
+        return [base - amp * (0.55 * math.sin(x * freq + ph[0]) + 0.3 * math.sin(x * freq * 2.7 + ph[1]) + 0.15 * math.sin(x * freq * 6.3 + ph[2])) for x in range(W)]
+
+    # montañas nevadas lejanas (escalonadas de a 2 píxeles)
+    far = ridge(62, 18, 11, 0.04)
+    for x in range(W):
+        top = int(far[x - x % 2]) // 2 * 2
+        for y in range(max(0, top), water):
+            # nieve solo en las cumbres altas, más gruesa cuanto más alta
+            snow = top < 58 and y - top < 2 + (58 - top) // 3
+            px[x, y] = jitter((190, 202, 220) if snow else mix((58, 72, 110), (36, 46, 76), (y - top) / 30), rnd, 3)
+    # colinas con pinos
+    near = ridge(78, 6, 4, 0.06)
+    for x in range(W):
+        top = int(near[x - x % 2]) // 2 * 2
+        for y in range(top, water):
+            px[x, y] = jitter((20, 30, 48), rnd, 2)
+    for x0 in range(2, W, 5):
+        if rnd.random() < 0.35:
+            continue
+        base = int(near[x0]) // 2 * 2
+        hgt = rnd.randint(6, 11)
+        for i in range(hgt):
+            half = (i * 3) // hgt
+            for dx in range(-half, half + 1):
+                if 0 <= x0 + dx < W:
+                    px[x0 + dx, base - hgt + i] = jitter((16, 26, 40), rnd, 2)
+
+    # orilla de bloques a la derecha (abajo a la izquierda queda agua tranquila para el texto)
+    blk = 4
+    shore = {}
+    for c in range(W // blk):
+        x = c * blk
+        if x < W * 0.6:
+            continue
+        top = water - 4 - (4 if x > W * 0.72 else 0) - (4 if x > W * 0.86 else 0)
+        shore[c] = top
+        for xx in range(x, x + blk):
+            for y in range(top, H):
+                depth = y - top
+                col = (52, 92, 52) if depth < 1 else (70, 50, 38) if (y // blk + c) % 2 else (62, 44, 34)
+                px[xx, y] = jitter(mix(col, (8, 10, 18), min(0.8, 0.45 + depth / 50)), rnd, 3)
+
+    # cabaña con la ventana encendida
+    cb = int(W * 0.78) // blk
+    gx, gy = cb * blk, shore[cb]
+    wall_w, wall_h = 18, 9
+    for y in range(gy - wall_h, gy):
+        for x in range(gx, gx + wall_w):
+            plank = (86, 58, 38) if (y - gy) % 3 else (66, 44, 30)
+            px[x, y] = jitter(plank, rnd, 4)
+    for i in range(7):  # techo escalonado
+        for x in range(gx - 2 + i, gx + wall_w + 2 - i):
+            px[x, gy - wall_h - 1 - i] = jitter(RED_DARK if i % 2 else RED_DEEPER, rnd, 5)
+    for y in range(gy - wall_h - 9, gy - wall_h - 3):  # chimenea
+        for x in range(gx + 13, gx + 15):
+            px[x, y] = jitter((70, 66, 70), rnd, 4)
+    for i in range(10):  # humo
+        sx, sy = gx + 14 + int(2 * math.sin(i * 0.9)), gy - wall_h - 11 - i * 2
+        if 0 <= sy:
+            px[sx, sy] = mix(px[sx, sy], (150, 155, 170), 0.6 - i * 0.05)
+    wx, wy = gx + 4, gy - 7  # ventana
+    base = img.copy()
+    bpx = base.load()
+    for y in range(H):
+        for x in range(W):
+            d = math.hypot((x - wx - 2) * 0.9, y - wy - 1)
+            if d < 22:
+                px[x, y] = mix(bpx[x, y], (255, 170, 80), (1 - d / 22) ** 2 * 0.35)
+    for y in range(wy, wy + 4):
+        for x in range(wx, wx + 5):
+            px[x, y] = (255, 200, 110) if (x - wx) != 2 and (y - wy) != 1 else (120, 76, 40)
+    for y in range(gy - 5, gy):  # puerta
+        for x in range(gx + 11, gx + 14):
+            px[x, y] = (46, 30, 22)
+    for x in range(gx - 14, gx):  # muelle
+        px[x, water] = (78, 54, 36)
+        if x % 5 == 0:
+            for y in range(water + 1, water + 4):
+                px[x, y] = (54, 38, 26)
+
+    # agua: reflejo de todo lo de arriba, oscurecido y ondulado, más el brillo de la luna
+    above = img.copy()
+    apx = above.load()
+    for y in range(water, H):
+        d = y - water
+        src_y = water - 1 - d
+        for x in range(W):
+            if x >= W * 0.6 and px[x, y] != apx[x, y] and y > water:
+                continue  # la orilla tapa el agua
+            ripple = int(round(math.sin(y * 1.7 + x * 0.05) * (1 + d / 20)))
+            sx = min(W - 1, max(0, x + ripple))
+            refl = apx[sx, src_y] if src_y >= 0 else (10, 14, 28)
+            water_col = mix((14, 24, 46), (6, 10, 22), d / (H - water))
+            c = mix(refl, water_col, 0.55 + d / (H - water) * 0.3)
+            if abs(x - mx) < max(2, 7 - d // 4) and (y + x // 3) % 3 == 0 and d < 40:
+                c = mix(c, (220, 225, 210), 0.55 - d / 90)  # camino de luz de la luna
+            if x < W * 0.6 or px[x, y] == apx[x, y]:
+                px[x, y] = c
+    for x in range(W):  # línea brillante del borde del agua
+        if px[x, water - 1][2] > 40 and x < W * 0.6:
+            px[x, water] = mix(px[x, water], (120, 160, 190), 0.4)
+
+    return upscale(img, 8)
+
+
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else 'art')
     out.mkdir(parents=True, exist_ok=True)
@@ -369,6 +570,11 @@ def main():
     modpack_icon().save(out / 'icon.png')
     logo().save(out / 'logo.png')
     background().save(out / 'background.png', optimize=True)
+    background_sunset().save(out / 'background-atardecer.png', optimize=True)
+    button(200, 24).save(out / 'btn-play.png')
+    button(200, 24, hover=True).save(out / 'btn-play-hover.png')
+    button(98, 20, 'dark').save(out / 'btn.png')
+    button(98, 20, 'dark', hover=True).save(out / 'btn-hover.png')
     for f in sorted(out.glob('*.png')):
         with Image.open(f) as im:
             print(f'{f.name}: {im.width}x{im.height}, {f.stat().st_size // 1024} KB')
