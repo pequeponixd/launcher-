@@ -221,7 +221,15 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
   }
   if (logoSize) out.push(fittedLogo('logo'));
   if (fx.splashes) out.push(splash('splash'));
-  if (fx.player) out.push(player('player', { anchor: 'mid-centered', x: -158, y: -52, width: 34, height: 80 }));
+  if (fx.player) {
+    // el personaje parado sobre una isla flotante, con una luz suave detrás (island.png y glow.png de make-art.py)
+    const P = { x: -158, y: -52, width: 34, height: 80 };
+    const cx = P.x + P.width / 2;
+    if (fx.glow) out.push(image('player:glow', fx.glow, { x: cx - 45, y: P.y - 14, width: 90, height: 110 }));
+    // la superficie de pasto está 4 px por debajo del borde de la imagen: ahí apoyan los pies
+    if (fx.island) out.push(image('player:island', fx.island, { x: cx - 32, y: P.y + P.height - 4, width: 64, height: 40 }));
+    out.push(player('player', { anchor: 'mid-centered', ...P }));
+  }
   const srv = String(server || '').trim();
   out.push(
     srv
@@ -235,7 +243,10 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
   }
   // botón "Mods" que agregan Forge y ModMenu (Fabric); si el mod no está, FancyMenu lo ignora
   out.push(hiddenVanillaButton('forge_titlescreen_mods_button'), hiddenVanillaButton('modmenu_titlescreen_mods_button'));
-  for (const d of ['title_screen_logo', 'title_screen_splash', 'title_screen_realms_notification']) out.push(hiddenDeep(d));
+  // también los textos de Forge: versión y mods abajo a la izquierda, y el aviso de actualización arriba
+  for (const d of ['title_screen_logo', 'title_screen_splash', 'title_screen_realms_notification', 'title_screen_branding', 'title_screen_forge_top']) {
+    out.push(hiddenDeep(d));
+  }
   return out.join('\n');
 }
 
@@ -372,7 +383,14 @@ function installMenu(packDir, { server = '', label } = {}) {
   const pair = (a, b) => (fs.existsSync(path.join(assets, a)) && fs.existsSync(path.join(assets, b)) ? [a, b] : null);
   const buttons = { play: pair('btn-play.png', 'btn-play-hover.png'), small: pair('btn.png', 'btn-hover.png') };
   const has = (f) => (fs.existsSync(path.join(assets, f)) ? f : undefined);
-  const fx = { hoverSound: has('hover.wav'), clickSound: has('click.wav'), splashes: has('splashes.txt'), player: true };
+  const fx = {
+    hoverSound: has('hover.wav'),
+    clickSound: has('click.wav'),
+    splashes: has('splashes.txt'),
+    player: true,
+    island: has('island.png'),
+    glow: has('glow.png'),
+  };
   // fondo animado (APNG) si existe; si no, la imagen fija
   const background = has('background.apng') || (hasBg && 'background.png');
   const logoSize = hasLogo ? pngSize(path.join(packDir, 'logo.png')) : null;

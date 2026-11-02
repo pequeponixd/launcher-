@@ -46,6 +46,11 @@ test('splash, personaje y tooltips', () => {
   assert.match(t, /element_type = splash_text/);
   assert.match(t, /source = \[source:local\]\/config\/fancymenu\/assets\/splashes\.txt/);
   assert.match(t, /copy_client_player = true/);
+  const withIsland = buildTitleLayout({ fx: { player: true, island: 'island.png', glow: 'glow.png' } });
+  // la isla y la luz van antes que el personaje (FancyMenu dibuja en orden: lo último queda encima)
+  assert.ok(withIsland.indexOf('island.png') < withIsland.indexOf('copy_client_player'));
+  assert.ok(withIsland.indexOf('glow.png') < withIsland.indexOf('island.png'));
+  assert.match(withIsland, /instance_identifier = deep:title_screen_branding\n(.*\n)*?  is_hidden = true/);
   assert.match(t, /description = Abre la lista de servidores/);
 });
 

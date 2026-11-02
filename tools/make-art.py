@@ -13,6 +13,7 @@ Crea:
   hover.wav / click.wav        sonidos cortos de los botones del menú
   intro.apng          960x540  animación de entrada del juego (se ve una vez al abrir Minecraft)
   loading-bar*.png    200x10   barra de carga (lleno y fondo) para Drippy Loading Screen
+  island.png / glow.png        isla flotante y luz suave donde se para tu personaje en el menú
   background-atardecer.png     el fondo anterior (atardecer con fogata)
   btn-play*.png       200x24   botón principal del menú del juego (normal y al pasar el mouse)
   btn*.png            98x20    botones secundarios (Opciones, Salir)
@@ -595,6 +596,75 @@ def background_animated(path, frames=None, ms=None, scale=4):
     return path
 
 
+# ------------------------------------------------------------------ isla flotante para el personaje del menú
+def floating_island(w=64, h=40, seed=21):
+    """Islita de pasto y tierra (1 px = 1 unidad de la interfaz). La superficie está en y=4."""
+    rnd = random.Random(seed)
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    top = 4
+    cx = w / 2
+    # ancho de cada fila: lleno arriba y se afina hacia abajo con bordes irregulares, de a 2 px (bloques)
+    rows = {}
+    for y in range(top, h):
+        d = (y - top) / (h - top - 1)
+        half = (w / 2 - 2) * (1 - d ** 1.4) + rnd.uniform(-1.5, 1.5) * d
+        if half < 1:
+            break
+        rows[y] = (int(cx - half) // 2 * 2, int(cx + half + 1) // 2 * 2)
+    for y, (x0, x1) in rows.items():
+        for x in range(x0, x1):
+            depth = y - top
+            edge = x in (x0, x1 - 1) or (y + 1) not in rows or not (rows[y + 1][0] <= x < rows[y + 1][1])
+            if depth < 3:
+                c = jitter((92, 158, 64) if depth == 0 else (70, 128, 50), rnd, 8)  # pasto
+            elif depth < 5 and rnd.random() < 0.5:
+                c = jitter((70, 128, 50), rnd, 8)  # pasto que cae por el borde
+            elif rnd.random() < 0.12:
+                c = jitter((120, 116, 120), rnd, 10)  # piedritas
+            else:
+                c = jitter((122, 84, 58) if (x // 2 + y // 2) % 3 else (106, 72, 50), rnd, 6)  # tierra
+            if edge and depth >= 3:
+                c = mix(c, INK, 0.45)  # sombra en el borde de abajo
+            if x == x0 or x == x1 - 1:
+                c = mix(c, INK, 0.25)
+            px[x, y] = hexa(mix(c, (20, 26, 48), 0.22))  # un poco del azul de la noche
+    x0, x1 = rows[top]
+    for x in range(x0, x1):  # pasto alto arriba
+        if rnd.random() < 0.35:
+            for yy in range(top - rnd.randint(1, 2), top):
+                px[x, yy] = hexa(mix(jitter((104, 176, 70), rnd, 10), (20, 26, 48), 0.2))
+    fx = x0 + 6  # una flor roja
+    px[fx, top - 1] = hexa((60, 120, 50))
+    px[fx, top - 2] = hexa(RED)
+    px[fx - 1, top - 3] = hexa(RED_LIGHT)
+    px[fx + 1, top - 3] = hexa(RED_LIGHT)
+    px[fx, top - 3] = hexa((255, 220, 90))
+    for _ in range(6):  # raíces colgando
+        y = max(rows) - rnd.randint(4, 12)
+        if y not in rows:
+            continue
+        x = rnd.randint(rows[y][0] + 1, rows[y][1] - 2)
+        for yy in range(y, min(h, y + rnd.randint(3, 8))):
+            if px[x, yy][3] == 0:
+                px[x, yy] = hexa((70, 52, 40))
+    return img
+
+
+def soft_glow(w=90, h=110, color=(120, 200, 190)):
+    """Luz suave detrás del personaje, en tramado para que siga siendo pixel art."""
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    for y in range(h):
+        for x in range(w):
+            d = math.hypot((x - w / 2) / (w / 2), (y - h * 0.62) / (h * 0.55))
+            a = max(0.0, 1 - d) ** 1.5
+            if a * 16 > bayer[y % 4][x % 4]:
+                px[x, y] = (*color, int(40 + 50 * a))
+    return img
+
+
 # ------------------------------------------------------------------ barra de carga (pantallas de carga)
 def loading_bar(w=200, h=10, filled=True, seed=9):
     rnd = random.Random(seed)
@@ -742,6 +812,8 @@ def main():
     button(98, 20, 'inactive').save(out / 'btn-inactive.png')
     button(8, 20, 'primary', seed=11).save(out / 'slider-handle.png')
     button(8, 20, 'primary', hover=True, seed=11).save(out / 'slider-handle-hover.png')
+    floating_island().save(out / 'island.png')
+    soft_glow().save(out / 'glow.png')
     loading_bar().save(out / 'loading-bar.png')
     loading_bar(filled=False).save(out / 'loading-bar-bg.png')
     intro_animated(out / 'intro.apng')
