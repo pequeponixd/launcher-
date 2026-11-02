@@ -11,6 +11,8 @@ Crea:
   background.png     1920x1080 noche de luna con aurora, lago y cabaña
   background.apng     960x540  la misma escena animada en loop (aurora, estrellas, agua, humo, luciérnagas)
   hover.wav / click.wav        sonidos cortos de los botones del menú
+  intro.apng          960x540  animación de entrada del juego (se ve una vez al abrir Minecraft)
+  loading-bar*.png    200x10   barra de carga (lleno y fondo) para Drippy Loading Screen
   background-atardecer.png     el fondo anterior (atardecer con fogata)
   btn-play*.png       200x24   botón principal del menú del juego (normal y al pasar el mouse)
   btn*.png            98x20    botones secundarios (Opciones, Salir)
@@ -375,6 +377,8 @@ def button(w, h, style='primary', hover=False, seed=5):
         face, light, dark = (mix(RED, RED_LIGHT, 0.5), mix(RED_LIGHT, WHITE, 0.3), RED_DARK) if hover else (RED, RED_LIGHT, RED_DARK)
         edge = WHITE if hover else INK
         rim = mix(RED_LIGHT, WHITE, 0.55)
+    elif style == 'inactive':
+        face, light, dark, edge, rim = (34, 31, 32), (44, 40, 42), (24, 22, 23), (14, 12, 13), None
     else:
         face, light, dark = ((64, 56, 58), (92, 82, 84), (34, 29, 31)) if hover else ((44, 38, 40), (66, 58, 60), (26, 22, 24))
         edge = RED if hover else INK
@@ -590,6 +594,100 @@ def background_animated(path, frames=36, ms=110, scale=4):
     return path
 
 
+# ------------------------------------------------------------------ barra de carga (pantallas de carga)
+def loading_bar(w=200, h=10, filled=True, seed=9):
+    rnd = random.Random(seed)
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            if x in (0, w - 1) or y in (0, h - 1):
+                px[x, y] = hexa(INK)
+            elif filled:
+                c = RED_LIGHT if y == 1 else RED_DARK if y >= h - 3 else RED
+                px[x, y] = hexa(jitter(c, rnd, 5))
+            else:
+                px[x, y] = hexa(jitter((30, 26, 28), rnd, 3))
+    return img
+
+
+# ------------------------------------------------------------------ animación de entrada (game intro)
+def draw_title(px, W, H, ox, oy, k, drops, shine=None, title='CACHUSAFIO'):
+    """Dibuja el título letra por letra con contorno y volumen. drops[i] = desplazamiento vertical de la letra i
+    (None = todavía no aparece). shine = diagonal (en celdas) del destello, o None."""
+    x0 = 0
+    for i, ch in enumerate(title):
+        g = FONT[ch]
+        face = {(x0 + cx, cy) for cy, row in enumerate(g) for cx, c in enumerate(row) if c == '#'}
+        w = len(g[0])
+        if drops[i] is not None:
+            dy = drops[i]
+            extr = {(x, y + d) for x, y in face for d in (1, 2)} - face
+            outline = dilate(face | extr) - face - extr
+            layers = [(outline, lambda x, y: INK), (extr, lambda x, y: RED_DEEPER if y >= 7 else RED_DARK),
+                      (face, lambda x, y: mix(mix(RED_LIGHT, RED_DARK, y / 6), WHITE, 0.3 if y == 0 else 0))]
+            for cells, col in layers:
+                for cx, cy in cells:
+                    c = col(cx, cy)
+                    if shine is not None and cells is face and abs((cx + cy) - shine) <= 1:
+                        c = mix(c, WHITE, 0.75)
+                    for yy in range(k):
+                        for xx in range(k):
+                            X, Y = ox + cx * k + xx, oy + int(dy) + cy * k + yy
+                            if 0 <= X < W and 0 <= Y < H:
+                                px[X, Y] = c
+        x0 += w + 2
+
+
+def intro_frames(frames=52):
+    """Escena nocturna que aparece desde negro, las letras caen una por una y rebotan, destello y subtítulo."""
+    W, H = 240, 135
+    # k=2: el logo (136 px) cabe aunque la ventana sea 4:3 y Minecraft recorte los costados
+    k = 2
+    title = 'CACHUSAFIO'
+    tw = sum(len(FONT[c][0]) + 2 for c in title) - 2
+    ox, oy = (W - tw * k) // 2, 40
+    sub, sw, _ = text_mask('EL DESAFÍO DE LAS KILAS')
+    out = []
+    for f in range(frames):
+        img = lake_frame((f / frames) % 1).convert('RGB')
+        px = img.load()
+        # oscurece la escena para que el logo resalte; al principio todo sale de negro
+        fade_in = min(1.0, f / 8)
+        for y in range(H):
+            for x in range(W):
+                px[x, y] = mix((0, 0, 0), mix(px[x, y], (4, 6, 14), 0.35), fade_in)
+        drops = []
+        for i in range(len(title)):
+            start = 6 + i * 2
+            t = (f - start) / 6
+            if t < 0:
+                drops.append(None)
+            elif t < 1:
+                drops.append(-70 * (1 - t) ** 2)  # cae acelerando
+            elif t < 1.5:
+                drops.append(-3 * math.sin((t - 1) * 2 * math.pi))  # pequeño rebote
+            else:
+                drops.append(0)
+        shine = (f - 34) * 4 - 10 if 34 <= f <= 44 else None
+        draw_title(px, W, H, ox, oy, k, drops, shine)
+        if f >= 38:  # subtítulo
+            a = min(1.0, (f - 38) / 6)
+            sx, sy = (W - sw) // 2, oy + 10 * k + 6
+            for cx, cy in sub:
+                X, Y = sx + cx, sy + cy
+                if 0 <= X < W and 0 <= Y < H:
+                    px[X, Y] = mix(px[X, Y], WHITE, a)
+        out.append(img)
+    return out
+
+
+def intro_animated(path, scale=4, ms=70):
+    imgs = [upscale(f, scale) for f in intro_frames()]
+    # loop=1: se reproduce una sola vez (FancyMenu pasa al menú al terminar)
+    imgs[0].save(path, format='PNG', save_all=True, append_images=imgs[1:], duration=ms, loop=1, optimize=True)
+
+
 def blip(path, freq=880, ms=45, vol=0.18, slide=1.0):
     """Sonido corto (wav) para los botones: un "tic" suave, sin archivos de terceros."""
     import struct
@@ -621,6 +719,13 @@ def main():
     background().save(out / 'background.png', optimize=True)
     background_sunset().save(out / 'background-atardecer.png', optimize=True)
     background_animated(out / 'background.apng')
+    # para todos los botones y deslizadores del juego (opciones globales de FancyMenu, con nine-slice)
+    button(98, 20, 'inactive').save(out / 'btn-inactive.png')
+    button(8, 20, 'primary', seed=11).save(out / 'slider-handle.png')
+    button(8, 20, 'primary', hover=True, seed=11).save(out / 'slider-handle-hover.png')
+    loading_bar().save(out / 'loading-bar.png')
+    loading_bar(filled=False).save(out / 'loading-bar-bg.png')
+    intro_animated(out / 'intro.apng')
     blip(out / 'hover.wav', freq=660, ms=40, vol=0.12, slide=1.3)
     blip(out / 'click.wav', freq=520, ms=70, vol=0.2, slide=0.6)
     button(200, 24).save(out / 'btn-play.png')

@@ -57,9 +57,29 @@ test('installMenu copia imágenes, escribe el layout y activa el menú principal
   fs.writeFileSync(path.join(dir, 'logo.png'), png);
   fs.writeFileSync(path.join(dir, 'background.png'), png);
   const changed = installMenu(dir, { server: '' });
-  assert.equal(changed.length, 4);
+  const names = changed.map((f) => path.basename(f));
+  for (const n of ['logo.png', 'background.png', 'cachusafio_menu.txt', 'cachusafio_connect_screen.txt', 'cachusafio_disconnected_screen.txt', 'customizablemenus.txt']) {
+    assert.ok(names.includes(n), n);
+  }
+  assert.ok(!names.includes('cachusafio_carga.txt')); // sin Drippy en mods/ no se crea
   const fm = path.join(dir, 'config', 'fancymenu');
   assert.ok(fs.existsSync(path.join(fm, 'assets', 'logo.png')));
-  assert.match(fs.readFileSync(path.join(fm, 'customizablemenus.txt'), 'utf8'), /TitleScreen \{/);
+  const menus = fs.readFileSync(path.join(fm, 'customizablemenus.txt'), 'utf8');
+  assert.match(menus, /TitleScreen \{/);
+  assert.match(menus, /multiplayer\.ConnectScreen \{|screens\.ConnectScreen \{/);
   assert.deepEqual(installMenu(dir, { server: '' }), []); // segunda vez no cambia nada
+});
+
+test('pantalla de carga de Drippy, intro y opciones', () => {
+  const { buildLoadingLayout, setOption } = require('../fancymenu-layout');
+  const t = buildLoadingLayout({ logoSize: [1224, 198] });
+  assert.match(t, /identifier = drippy_loading_overlay/);
+  assert.match(t, /progress_source = \{"placeholder":"game_loading_progress"\}/);
+  assert.match(t, /instance_identifier = mojang_logo\n(.*\n)*?  is_hidden = true/);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opt-'));
+  const f = path.join(dir, 'options.txt');
+  fs.writeFileSync(f, "##[x]\nS:game_intro_animation_name = '';\nB:other = 'true';\n");
+  assert.equal(setOption(f, 'game_intro_animation_name', '[source:local]/a.apng'), true);
+  assert.match(fs.readFileSync(f, 'utf8'), /S:game_intro_animation_name = '\[source:local\]\/a\.apng';/);
+  assert.equal(setOption(f, 'no_existe', 'x'), false);
 });

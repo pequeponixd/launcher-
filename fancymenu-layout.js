@@ -161,6 +161,99 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
   return out.join('\n');
 }
 
+function layoutHeader(identifier, background) {
+  const req = fmId(identifier + ':req');
+  const out = [
+    'type = fancymenu_layout\n',
+    block('layout-meta', [
+      `identifier = ${identifier}`,
+      'render_custom_elements_behind_vanilla = false',
+      `last_edited_time = ${STAMP}`,
+      'is_enabled = true',
+      'randommode = false',
+      'randomgroup = 1',
+      'randomonlyfirsttime = false',
+      'layout_index = 0',
+      `[loading_requirement_container_meta:${req}] = [groups:][instances:]`,
+    ]),
+  ];
+  if (background) {
+    out.push(
+      block('menu_background', [`image_path = ${asset(background)}`, 'slide = false', 'repeat_texture = false', 'background_type = image']),
+      block('customization', ['action = backgroundoptions', 'keepaspectratio = true'])
+    );
+  }
+  return out;
+}
+
+function logoAt(id, logoSize, pos) {
+  if (!logoSize) return [];
+  const w = pos.width || 200;
+  return [image(id, 'logo.png', { ...pos, width: w, height: Math.round((w * logoSize[1]) / logoSize[0]) })];
+}
+
+// Pantallas mientras se entra a un servidor o a un mundo: mismo fondo y el logo arriba.
+// Los textos de Minecraft ("Conectando…", "Cargando terreno…") siguen en su lugar.
+const SCREENS = {
+  connect_screen: 'net.minecraft.client.gui.screens.ConnectScreen',
+  receiving_level_screen: 'net.minecraft.client.gui.screens.ReceivingLevelScreen',
+  level_loading_screen: 'net.minecraft.client.gui.screens.LevelLoadingScreen',
+  progress_screen: 'net.minecraft.client.gui.screens.ProgressScreen',
+  disconnected_screen: 'net.minecraft.client.gui.screens.DisconnectedScreen',
+};
+
+function buildScreenLayout(identifier, { background = 'background.png', logoSize = null } = {}) {
+  return [...layoutHeader(identifier, background), ...logoAt('logo:' + identifier, logoSize, { anchor: 'top-centered', x: -90, y: 18, width: 180 })].join('\n');
+}
+
+/** Pantalla de carga del juego (Drippy Loading Screen): fondo, logo y barra propia en vez de Mojang. */
+function buildLoadingLayout({ background = 'background.png', logoSize = null } = {}) {
+  const hideVanilla = (id) => {
+    const blockId = fmId(id + ':block');
+    return block('vanilla_button', [
+      `button_element_executable_block_identifier = ${blockId}`,
+      `[executable_block:${blockId}][type:generic] = [executables:]`,
+      ...buttonCommon,
+      'element_type = vanilla_button',
+      ...placement('drippy:' + id, { anchor: 'vanilla' }).map((l) => l.replace(/^instance_identifier = .*/, `instance_identifier = ${id}`)),
+      'is_hidden = true',
+      'automated_button_clicks = 0',
+    ]);
+  };
+  const bar = block('element', [
+    `bar_texture = ${asset('loading-bar.png')}`,
+    `background_texture = ${asset('loading-bar-bg.png')}`,
+    'bar_color = #E0112BFF',
+    'background_color = #1E1A1CFF',
+    'direction = right',
+    'progress_for_element_anchor = false',
+    'progress_source = {"placeholder":"game_loading_progress"}',
+    'value_mode = percentage',
+    'smooth_filling_animation = true',
+    'element_type = progress_bar',
+    ...placement('loading:bar', { anchor: 'mid-centered', x: -100, y: 20, width: 200, height: 10 }),
+  ]);
+  return [
+    ...layoutHeader('drippy_loading_overlay', background),
+    ...logoAt('loading:logo', logoSize, { anchor: 'mid-centered', x: -120, y: -40, width: 240 }),
+    bar,
+    hideVanilla('mojang_logo'),
+    hideVanilla('progress_bar'),
+  ].join('\n');
+}
+
+// Cambia una opción de los options.txt de FancyMenu/Drippy (formato  S:clave = 'valor';)
+function setOption(file, key, value) {
+  if (!fs.existsSync(file)) return false;
+  const text = fs.readFileSync(file, 'utf8');
+  const re = new RegExp(`^([SBIF]):${key} = '[^']*';`, 'm');
+  if (!re.test(text)) return false;
+  const next = text.replace(re, (_m, t) => `${t}:${key} = '${value}';`);
+  if (next === text) return false;
+  fs.writeFileSync(file, next);
+  return true;
+}
+
 // Ancho y alto de un PNG leyendo su cabecera (sin dependencias)
 function pngSize(file) {
   const b = fs.readFileSync(file);
@@ -198,20 +291,83 @@ function installMenu(packDir, { server = '', label } = {}) {
   const fx = { hoverSound: has('hover.wav'), clickSound: has('click.wav') };
   // fondo animado (APNG) si existe; si no, la imagen fija
   const background = has('background.apng') || (hasBg && 'background.png');
-  const text = buildTitleLayout({ server, label, background, logoSize: hasLogo ? pngSize(path.join(packDir, 'logo.png')) : null, buttons, fx });
-  const file = path.join(custom, LAYOUT_FILE);
-  if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== text) {
-    fs.writeFileSync(file, text);
-    changed.push(file);
+  const logoSize = hasLogo ? pngSize(path.join(packDir, 'logo.png')) : null;
+  const write = (name, text) => {
+    const file = path.join(custom, name);
+    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== text) {
+      fs.writeFileSync(file, text);
+      changed.push(file);
+    }
+  };
+  write(LAYOUT_FILE, buildTitleLayout({ server, label, background, logoSize, buttons, fx }));
+  const screens = { title: 'net.minecraft.client.gui.screens.TitleScreen' };
+  for (const [id, cls] of Object.entries(SCREENS)) {
+    write(`cachusafio_${id}.txt`, buildScreenLayout(id, { background: background || undefined, logoSize }));
+    screens[id] = cls;
   }
+  // pantalla de carga del juego, solo si el modpack trae Drippy Loading Screen
+  const drippyCfg = path.join(packDir, 'config', 'drippyloadingscreen', 'options.txt');
+  const hasDrippy = fs.existsSync(path.join(packDir, 'mods')) && fs.readdirSync(path.join(packDir, 'mods')).some((f) => /^drippyloadingscreen/i.test(f));
+  if (hasDrippy && hasBg && has('loading-bar.png') && has('loading-bar-bg.png')) {
+    write('cachusafio_carga.txt', buildLoadingLayout({ background: 'background.png', logoSize }));
+    screens.drippy = 'de.keksuccino.drippyloadingscreen.customization.DrippyOverlayScreen';
+    // la primera ventana de Forge (antes de que carguen los mods) también con el fondo, logo y barra
+    const opt = (k, v) => setOption(drippyCfg, k, v) && !changed.includes(drippyCfg) && changed.push(drippyCfg);
+    opt('early_loading_background_texture_path', '/config/fancymenu/assets/background.png');
+    if (hasLogo) {
+      opt('early_loading_logo_texture_path', '/config/fancymenu/assets/logo.png');
+      opt('early_loading_logo_width', '480');
+      opt('early_loading_logo_height', String(Math.round((480 * logoSize[1]) / logoSize[0])));
+    }
+    opt('early_loading_bar_progress_texture_path', '/config/fancymenu/assets/loading-bar.png');
+    opt('early_loading_bar_background_texture_path', '/config/fancymenu/assets/loading-bar-bg.png');
+    opt('early_loading_bar_height', '20');
+  }
+  // todos los botones y deslizadores de Minecraft (Opciones, Cancelar, Volver…) con el mismo estilo.
+  // nine-slice: solo se estira el centro, así la textura sirve para botones de cualquier ancho
+  if (has('btn.png') && has('btn-hover.png') && has('btn-inactive.png')) {
+    const o = [
+      ['global_button_background_normal', asset('btn.png')],
+      ['global_button_background_hover', asset('btn-hover.png')],
+      ['global_button_background_inactive', asset('btn-inactive.png')],
+      ['global_button_background_nine_slice', 'true'],
+      ['global_button_background_nine_slice_border_left', '3'],
+      ['global_button_background_nine_slice_border_right', '3'],
+      ['global_button_background_nine_slice_border_top', '2'],
+      ['global_button_background_nine_slice_border_bottom', '3'],
+      ['global_slider_background', asset('btn-inactive.png')],
+      ['global_slider_background_nine_slice', 'true'],
+      ['global_slider_background_nine_slice_border_left', '3'],
+      ['global_slider_background_nine_slice_border_right', '3'],
+      ['global_slider_background_nine_slice_border_top', '2'],
+      ['global_slider_background_nine_slice_border_bottom', '3'],
+    ];
+    if (has('slider-handle.png') && has('slider-handle-hover.png')) {
+      o.push(['global_slider_handle_normal', asset('slider-handle.png')], ['global_slider_handle_hover', asset('slider-handle-hover.png')]);
+    }
+    let any = false;
+    for (const [k, v] of o) any = setOption(path.join(fmDir, 'options.txt'), k, v) || any;
+    if (any) changed.push(path.join(fmDir, 'options.txt'));
+  }
+
+  // animación de entrada al abrir el juego
+  const fmOptions = path.join(fmDir, 'options.txt');
+  if (has('intro.apng')) {
+    const a = setOption(fmOptions, 'game_intro_animation_name', asset('intro.apng'));
+    const b = setOption(fmOptions, 'custom_game_intro_skip_text', 'Presiona cualquier tecla para saltar');
+    if (a || b) changed.push(fmOptions);
+  }
+
   // FancyMenu solo aplica layouts a las pantallas que están en esta lista
   const menus = path.join(fmDir, 'customizablemenus.txt');
-  const current = fs.existsSync(menus) ? fs.readFileSync(menus, 'utf8') : 'type = customizablemenus\n\n';
-  if (!current.includes('net.minecraft.client.gui.screens.TitleScreen')) {
-    fs.writeFileSync(menus, current.trimEnd() + '\n\nnet.minecraft.client.gui.screens.TitleScreen {\n}\n');
+  let current = fs.existsSync(menus) ? fs.readFileSync(menus, 'utf8') : 'type = customizablemenus\n\n';
+  const before = current;
+  for (const cls of Object.values(screens)) if (!current.includes(cls + ' {')) current = current.trimEnd() + `\n\n${cls} {\n}\n`;
+  if (current !== before) {
+    fs.writeFileSync(menus, current);
     changed.push(menus);
   }
   return changed;
 }
 
-module.exports = { buildTitleLayout, installMenu, fmId, pngSize, LAYOUT_FILE };
+module.exports = { buildTitleLayout, buildScreenLayout, buildLoadingLayout, installMenu, setOption, fmId, pngSize, LAYOUT_FILE, SCREENS };
