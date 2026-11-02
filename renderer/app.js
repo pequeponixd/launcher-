@@ -46,7 +46,7 @@ const T = {
     offlinePack: 'Sin conexión: usando datos guardados', logout: 'Quitar cuenta',
     sound: 'Sonidos', volume: 'Volumen',
     kill: 'Cerrar juego', killSure: '¿Forzar el cierre de Minecraft? Se pierde lo que no se haya guardado.',
-    update: 'Versión {v} disponible — descargar',
+    update: 'Versión {v} disponible. Descargar',
     crashTitle: 'Minecraft se cerró con error',
     crashSub: 'Código {code}. Estas son las últimas líneas del log; si pides ayuda, copia y pega esto.',
     copy: 'Copiar', copied: 'Copiado',
@@ -56,6 +56,11 @@ const T = {
     updDownloading: 'Descargando actualización del launcher… {p}%', updReady: 'Reiniciar para actualizar a {v}',
     secCustom: 'Personalizar (solo en este PC)', icon: 'Icono', background: 'Fondo', logo: 'Logo', color: 'Color',
     change: 'Cambiar', reset: 'Restaurar', before: 'antes',
+    serverTitle: 'En el servidor', serverNone: 'Este modpack todavía no tiene servidor.', nobody: 'No hay nadie conectado.',
+    playersHidden: 'El servidor no muestra quién está conectado.', more: 'y {n} más', nickRule: '3 a 16 letras, números o guion bajo',
+    updateFinding: 'Actualización lista: {changes}. Se descarga al darle Jugar.', filterAll: 'Todos', filterNew: 'Nuevos', filterUpdated: 'Actualizados', filterBig: 'Grandes',
+    adminNoneFilter: 'Ningún mod en este filtro.',
+    modNew1: '1 mod nuevo', modNewN: '{n} mods nuevos', modUp1: '1 actualizado', modUpN: '{n} actualizados', modRm1: '1 quitado', modRmN: '{n} quitados', and: 'y',
     admin: 'Administrar', adminTitle: 'Administrar modpack', adminRefresh: 'Actualizar', adminMods: 'Mods',
     adminFolder: 'Abrir carpeta', adminAdd: 'Agregar mods', adminDrop: 'Arrastra archivos .jar aquí',
     adminVersion: 'Versión', adminServer: 'IP del servidor', adminServerPh: 'Vacío: el botón abre la lista de servidores',
@@ -112,7 +117,7 @@ const T = {
     offlinePack: 'Offline: using saved data', logout: 'Remove account',
     sound: 'Sounds', volume: 'Volume',
     kill: 'Close game', killSure: 'Force Minecraft to close? Anything not saved will be lost.',
-    update: 'Version {v} available — download',
+    update: 'Version {v} available. Download',
     crashTitle: 'Minecraft closed with an error',
     crashSub: 'Code {code}. These are the last lines of the log; if you ask for help, copy and paste this.',
     copy: 'Copy', copied: 'Copied',
@@ -122,6 +127,11 @@ const T = {
     updDownloading: 'Downloading launcher update… {p}%', updReady: 'Restart to update to {v}',
     secCustom: 'Customize (this PC only)', icon: 'Icon', background: 'Background', logo: 'Logo', color: 'Color',
     change: 'Change', reset: 'Reset', before: 'was',
+    serverTitle: 'On the server', serverNone: 'This modpack has no server yet.', nobody: 'Nobody is online.',
+    playersHidden: 'The server hides who is online.', more: 'and {n} more', nickRule: '3 to 16 letters, numbers or underscore',
+    updateFinding: 'Update ready: {changes}. Downloads when you press Play.', filterAll: 'All', filterNew: 'New', filterUpdated: 'Updated', filterBig: 'Large',
+    adminNoneFilter: 'No mods in this filter.',
+    modNew1: '1 new mod', modNewN: '{n} new mods', modUp1: '1 updated', modUpN: '{n} updated', modRm1: '1 removed', modRmN: '{n} removed', and: 'and',
     admin: 'Manage', adminTitle: 'Manage modpack', adminRefresh: 'Refresh', adminMods: 'Mods',
     adminFolder: 'Open folder', adminAdd: 'Add mods', adminDrop: 'Drop .jar files here',
     adminVersion: 'Version', adminServer: 'Server address', adminServerPh: 'Empty: the button opens the server list',
@@ -150,6 +160,7 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
   document.querySelectorAll('[data-i18n-ph]').forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
   document.querySelectorAll('[data-i18n-title]').forEach((el) => (el.title = t(el.dataset.i18nTitle)));
+  document.querySelectorAll('[data-i18n-label]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nLabel)));
   $('lang-login').value = lang;
 }
 
@@ -164,6 +175,7 @@ const initials = (name = '?') => {
   return (w.length > 1 ? w[0][0] + w[1][0] : name.slice(0, 2)).toUpperCase();
 };
 
+const MISSING = '\u2014'; // valor que falta (raya gris), no un cero
 const LOADERS = { forge: 'Forge', neoforge: 'NeoForge', fabric: 'Fabric', quilt: 'Quilt', vanilla: 'Vanilla' };
 
 const curPack = () => S.packs.find((p) => p.id === S.selectedPack) || S.packs[0] || null;
@@ -257,19 +269,31 @@ function renderStage() {
   bg.classList.toggle('img', !!p?.background);
   bg.classList.toggle('empty', !p?.background);
 
+  // portada: el arte del modpack con su logo; el título de la pantalla es siempre el nombre
   const logo = $('hero-logo');
+  logo.classList.toggle('hidden', !p?.logo);
   if (p?.logo) {
     logo.src = p.logo;
-    logo.classList.remove('hidden');
-    $('hero-title').classList.add('hidden');
-  } else {
-    logo.classList.add('hidden');
-    $('hero-title').classList.remove('hidden');
-    $('hero-title').textContent = p ? p.name : t('emptyTitle');
+    logo.alt = p.name;
   }
-  $('hero-desc').textContent = p ? p.description || '' : t('emptySub');
-  const chips = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader, p.version && 'v' + p.version] : [];
-  $('hero-meta').innerHTML = chips.filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
+  $('cover').classList.toggle('hidden', !p);
+  $('hero-title').textContent = p ? p.name : t('emptyTitle');
+  $('crumb').textContent = p ? p.description || '' : '';
+  // la línea bajo el título dice lo más importante: si hay actualización, eso; si no, versión y loader
+  const pend = p?.pending;
+  const count = (k) => (pend ? pend[k].length : 0);
+  if (pend && count('added') + count('updated') + count('removed')) {
+    const parts = [
+      count('added') && t(count('added') === 1 ? 'modNew1' : 'modNewN', { n: count('added') }),
+      count('updated') && t(count('updated') === 1 ? 'modUp1' : 'modUpN', { n: count('updated') }),
+      count('removed') && t(count('removed') === 1 ? 'modRm1' : 'modRmN', { n: count('removed') }),
+    ].filter(Boolean);
+    const joined = parts.length > 1 ? parts.slice(0, -1).join(', ') + ` ${t('and')} ` + parts[parts.length - 1] : parts[0];
+    $('hero-desc').innerHTML = esc(t('updateFinding', { changes: joined })).replace(/^([^:]+:)/, '<b>$1</b>');
+  } else {
+    $('hero-desc').textContent = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader, p.version && 'v' + p.version].filter(Boolean).join(' · ') : t('emptySub');
+  }
+  $('hero-meta').textContent = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader].filter(Boolean).join(' · ') : '';
   renderNews(p);
   if (stagePackId !== lastServerPack) refreshServer();
   $('btn-play').disabled = !p || busy;
@@ -289,14 +313,14 @@ function renderNews(p) {
   const title = p.pending ? t('newsPending') : t('newsLast') + (p.version ? ` · v${esc(p.version)}` : '');
   const sub = p.pending ? t('newsPendingSub') : date;
   let body = '';
-  if (notes.length) body += `<h5>${t('newsNotes')}</h5><ul>${list('note', notes.map(esc))}</ul>`;
-  if (ch?.added.length) body += `<h5>${t('newsAdded')}</h5><ul>${list('add', ch.added.map(esc))}</ul>`;
+  if (notes.length) body += `<div><h5>${t('newsNotes')}</h5><ul>${list('note', notes.map(esc))}</ul></div>`;
+  if (ch?.added.length) body += `<div><h5>${t('newsAdded')}</h5><ul>${list('add', ch.added.map(esc))}</ul></div>`;
   if (ch?.updated.length) {
     // si cambió el nombre del archivo se muestra "antes → ahora"; si no, solo el nombre
     const up = ch.updated.map((u) => (u.from === u.to ? esc(u.to) : `${esc(u.to)} <small>(${t('before')} ${esc(u.from)})</small>`));
-    body += `<h5>${t('newsUpdated')}</h5><ul>${list('up', up)}</ul>`;
+    body += `<div><h5>${t('newsUpdated')}</h5><ul>${list('up', up)}</ul></div>`;
   }
-  if (ch?.removed.length) body += `<h5>${t('newsRemoved')}</h5><ul>${list('rm', ch.removed.map(esc))}</ul>`;
+  if (ch?.removed.length) body += `<div><h5>${t('newsRemoved')}</h5><ul>${list('rm', ch.removed.map(esc))}</ul></div>`;
   box.innerHTML = `<header><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</header><div class="body">${body}</div>`;
   box.classList.remove('hidden');
 }
@@ -306,44 +330,59 @@ async function refreshServer() {
   const p = curPack();
   lastServerPack = p ? p.id : null;
   const el = $('server');
+  // sin servidor el panel mantiene su marco y lo dice en una frase
   if (!p?.server) {
-    $('heads').classList.add('hidden');
-    return el.classList.add('hidden');
+    el.className = 'server';
+    el.textContent = t('serverNone');
+    $('server-count').textContent = MISSING;
+    $('server-max').textContent = '';
+    $('heads').innerHTML = '';
+    return;
   }
   if (el.dataset.pack !== p.id) {
     el.dataset.pack = p.id;
     el.className = 'server';
     el.textContent = t('serverChecking');
+    $('server-count').textContent = MISSING;
+    $('server-max').textContent = '';
+    $('heads').innerHTML = '';
   }
   const r = await api.serverStatus(p.id).catch(() => null);
   if (curPack()?.id !== p.id) return; // cambió de modpack mientras esperaba
   el.classList.toggle('on', !!r?.online);
-  el.textContent = r?.online ? t('serverOn', r.players) : t('serverOff');
-  el.title = r?.online ? [r.motd, r.version, r.latency + ' ms'].filter(Boolean).join('\n') : '';
+  el.textContent = r?.online ? [p.server, r.latency != null && `${r.latency} ms`].filter(Boolean).join(' · ') : t('serverOff');
+  el.title = r?.online ? [r.motd, r.version].filter(Boolean).join('\n') : '';
+  $('server-count').textContent = r?.online ? r.players.online : MISSING;
+  $('server-max').textContent = r?.online ? `/ ${r.players.max}` : '';
   renderHeads(r?.online ? r.players : null);
 }
 
-// Caras de quienes están conectados (el servidor manda una muestra de hasta ~12)
+// Quién está conectado: cara y nombre, hasta 5 filas y "y N más"
 function renderHeads(players) {
   const box = $('heads');
-  const list = players?.sample || [];
-  box.classList.toggle('hidden', !list.length);
   box.innerHTML = '';
-  const MAX = 8;
+  if (!players) return;
+  const list = players.sample || [];
+  if (!list.length) {
+    box.innerHTML = `<li class="empty">${esc(players.online ? t('playersHidden') : t('nobody'))}</li>`;
+    return;
+  }
+  const MAX = 5;
   for (const pl of list.slice(0, MAX)) {
+    const li = document.createElement('li');
     const im = document.createElement('img');
-    im.alt = pl.name;
-    im.title = pl.name;
+    im.alt = '';
     im.src = head({ type: 'microsoft', uuid: pl.id }, 32);
     im.onerror = () => { im.onerror = null; im.src = STEVE; };
-    box.appendChild(im);
+    const name = document.createElement('span');
+    name.textContent = pl.name;
+    li.append(im, name);
+    box.appendChild(li);
   }
-  const more = Math.max(players?.online || 0, list.length) - Math.min(list.length, MAX);
-  if (list.length && more > 0) box.insertAdjacentHTML('beforeend', `<span class="more">+${more}</span>`);
+  const more = Math.max(players.online || 0, list.length) - Math.min(list.length, MAX);
+  if (more > 0) box.insertAdjacentHTML('beforeend', `<li class="more">${esc(t('more', { n: more }))}</li>`);
 }
-setInterval(() => S?.accounts.length && !document.hidden && refreshServer(), 60000);
 
-/* ------------------------------------------------------------ progreso */
 api.onStatus(({ key, params, percent }) => {
   $('status').textContent = t(key, params);
   if (key === 'game.crashed') sfx.error();
@@ -444,7 +483,7 @@ function openAccountMenu() {
   for (const a of S.accounts) {
     const row = document.createElement('div');
     row.className = 'acc' + (a.id === curAcc()?.id ? ' sel' : '');
-    row.innerHTML = `<img alt=""><div class="n"><b></b><small></small></div><button class="x" title="${t('logout')}">✕</button>`;
+    row.innerHTML = `<img alt=""><div class="n"><b></b><small></small></div><button class="x" title="${t('logout')}" aria-label="${t('logout')}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>`;
     const im = row.querySelector('img');
     im.src = head(a);
     im.onerror = () => { im.onerror = null; im.src = STEVE; };
@@ -665,6 +704,7 @@ api.onUpdater(showUpdate);
 
 /* ------------------------------------------------------------ administrar el modpack */
 let adminSt = null;
+let adminFilter = 'all';
 let publishing = false;
 
 const fmtMb = (b) => (b / 1048576 >= 10 ? (b / 1048576).toFixed(0) : (b / 1048576).toFixed(1)) + ' MB';
@@ -680,11 +720,30 @@ function renderAdmin(st, { keepForm = false } = {}) {
   const base = (n) => n.replace(/\.jar$/i, '');
   const added = new Set(st.changes.added);
   const updated = new Set(st.changes.updated.map((u) => u.to));
-  $('admin-count').textContent = `(${st.mods.length})`;
-  $('admin-list').innerHTML = st.mods
+  // tarjetas de conteo que filtran la lista (Todos / Nuevos / Actualizados / Grandes)
+  const kinds = {
+    all: () => true,
+    new: (m) => added.has(base(m.name)),
+    updated: (m) => updated.has(base(m.name)),
+    big: (m) => m.big,
+  };
+  const labels = { all: t('filterAll'), new: t('filterNew'), updated: t('filterUpdated'), big: t('filterBig') };
+  $('admin-filters').innerHTML = Object.keys(kinds)
+    .map((k) => `<button role="tab" aria-selected="${k === adminFilter}" data-filter="${k}"><small>${labels[k]}</small><b class="num">${st.mods.filter(kinds[k]).length}</b></button>`)
+    .join('');
+  $('admin-filters').querySelectorAll('[data-filter]').forEach((b) => {
+    b.onclick = () => {
+      adminFilter = b.dataset.filter;
+      renderAdmin(adminSt, { keepForm: true });
+    };
+  });
+  const shown = st.mods.filter(kinds[adminFilter]);
+  $('admin-count').textContent = `${shown.length}`;
+  $('admin-list').innerHTML = shown.length ? '' : `<li class="drop-hint">${t('adminNoneFilter')}</li>`;
+  $('admin-list').innerHTML += shown
     .map((m) => {
       const tag = added.has(base(m.name)) ? `<span class="tag new">${t('adminNew')}</span>` : updated.has(base(m.name)) ? `<span class="tag up">${t('adminUpdated')}</span>` : '';
-      return `<li><span class="n">${esc(m.name)}</span>${tag}${m.big ? `<span class="tag big">${t('adminBig')}</span>` : ''}<small>${fmtMb(m.size)}</small><button class="x" data-rm="${esc(m.name)}" title="${t('removePack')}">✕</button></li>`;
+      return `<li><span class="n">${esc(m.name)}</span>${tag}${m.big ? `<span class="tag big">${t('adminBig')}</span>` : ''}<small>${fmtMb(m.size)}</small><button class="x" data-rm="${esc(m.name)}" title="${t('removePack')}" aria-label="${t('removePack')}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button></li>`;
     })
     .join('');
   $('admin-list').querySelectorAll('[data-rm]').forEach((b) => {
