@@ -8,7 +8,15 @@ Crea:
   launcher-icon.png   512x512  icono de la app (build/icon.png)
   icon.png            256x256  icono del modpack (ruleta)
   logo.png           ~1220x200 logo "CACHUSAFIO" con fondo transparente
-  background.png     1920x1080 atardecer con fogata
+  background.png     1920x1080 noche de luna con aurora, lago y cabaña
+  background.apng     960x540  la misma escena animada en loop (aurora, estrellas, agua, humo, luciérnagas)
+  hover.wav / click.wav        sonidos cortos de los botones del menú
+  intro.apng          960x540  animación de entrada del juego (se ve una vez al abrir Minecraft)
+  loading-bar*.png    200x10   barra de carga (lleno y fondo) para Drippy Loading Screen
+  island.png / glow.png        isla flotante y luz suave donde se para tu personaje en el menú
+  background-atardecer.png     el fondo anterior (atardecer con fogata)
+  btn-play*.png       200x24   botón principal del menú del juego (normal y al pasar el mouse)
+  btn*.png            98x20    botones secundarios (Opciones, Salir)
 
 Todo se dibuja en una cuadrícula pequeña y se agranda sin suavizar, por eso se ve "pixelado".
 Cambia los colores de arriba y vuelve a ejecutarlo. Requiere Pillow.
@@ -240,7 +248,7 @@ def logo(title='CACHUSAFIO', subtitle=None):
 
 
 # ------------------------------------------------------------------ fondo
-def background():
+def background_sunset():
     W, H = 240, 135  # ×8 = 1920×1080
     rnd = random.Random(42)
     img = Image.new('RGB', (W, H))
@@ -362,6 +370,435 @@ def background():
     return upscale(img, 8)
 
 
+# ------------------------------------------------------------------ botones del menú del juego
+def button(w, h, style='primary', hover=False, seed=5):
+    """Textura de botón a 1 píxel = 1 unidad de la interfaz de Minecraft (se ve nítida a cualquier escala)."""
+    rnd = random.Random(seed + (1 if hover else 0))
+    if style == 'primary':
+        face, light, dark = (mix(RED, RED_LIGHT, 0.5), mix(RED_LIGHT, WHITE, 0.3), RED_DARK) if hover else (RED, RED_LIGHT, RED_DARK)
+        edge = WHITE if hover else INK
+        rim = mix(RED_LIGHT, WHITE, 0.55)
+    elif style == 'inactive':
+        face, light, dark, edge, rim = (34, 31, 32), (44, 40, 42), (24, 22, 23), (14, 12, 13), None
+    else:
+        face, light, dark = ((64, 56, 58), (92, 82, 84), (34, 29, 31)) if hover else ((44, 38, 40), (66, 58, 60), (26, 22, 24))
+        edge = RED if hover else INK
+        rim = mix(RED, (64, 56, 58), 0.4)
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            corner = (x in (0, w - 1)) and (y in (0, h - 1))
+            if corner:
+                continue  # esquinas recortadas, como los botones de Minecraft
+            if x in (0, w - 1) or y in (0, h - 1):
+                px[x, y] = hexa(edge)
+            elif hover and (y == 1 or (x in (1, w - 2) and y < h - 3)):
+                px[x, y] = hexa(rim)  # resalte: borde interior iluminado al pasar el mouse
+            elif y == 1:
+                px[x, y] = hexa(jitter(light, rnd, 4))  # brillo arriba
+            elif y >= h - 3:
+                px[x, y] = hexa(jitter(dark, rnd, 4))  # sombra abajo: da volumen
+            else:
+                px[x, y] = hexa(jitter(face, rnd, 6))
+    return img
+
+
+# ------------------------------------------------------------------ fondo: noche en el lago (animado)
+def lake_frame(t=0.0):
+    """Un cuadro de la escena, sin agrandar (240×135). t va de 0 a 1 y da la vuelta completa (loop perfecto)."""
+    W, H = 240, 135
+    TAU = 2 * math.pi
+    rnd = random.Random(7)  # misma semilla en cada cuadro: lo que no se anima queda idéntico
+    img = Image.new('RGB', (W, H))
+    px = img.load()
+    water = 86  # línea del agua
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    stops = [(0.0, (6, 8, 24)), (0.45, (14, 24, 54)), (0.8, (28, 52, 84)), (1.0, (52, 86, 112))]
+
+    def sky(v):
+        for i in range(len(stops) - 1):
+            a, b = stops[i], stops[i + 1]
+            if v <= b[0]:
+                return mix(a[1], b[1], (v - a[0]) / (b[0] - a[0]))
+        return stops[-1][1]
+
+    bands = 12
+    for y in range(water):
+        for x in range(W):
+            f = y / water * bands
+            step = math.floor(f) + (1 if (f % 1) * 16 > bayer[y % 4][x % 4] else 0)
+            px[x, y] = sky(min(step, bands) / bands)
+
+    # aurora: cortinas verticales que ondulan (borde de abajo brillante, se desvanece hacia arriba)
+    for x in range(W):
+        bottom = int(36 + 6 * math.sin(x * 0.05 + TAU * t) + 3 * math.sin(x * 0.13 + 0.7 - 2 * TAU * t))
+        length = int(12 + 9 * (0.5 + 0.5 * math.sin(x * 0.27 + math.sin(x * 0.05 + TAU * t) * 2)))
+        strength = 0.42 + 0.2 * math.sin(x * 0.08 + 1 + TAU * t) + 0.1 * math.sin(x * 0.31 - TAU * t)
+        for i in range(length):
+            y = bottom - i
+            if not 0 <= y < water:
+                continue
+            a = strength * (1 - i / length) ** 1.3
+            if a < 0.12 and (x + y) % 2:
+                continue  # tramado en las puntas
+            px[x, y] = mix(px[x, y], (110, 240, 170) if i < 3 else (70, 180, 170), min(0.65, a))
+
+    for i in range(110):  # estrellas que titilan, cada una a su ritmo
+        x, y = rnd.randrange(W), rnd.randrange(int(water * 0.85))
+        tw = 0.55 + 0.45 * math.sin(TAU * (t * (1 + i % 2) + i * 0.137))
+        px[x, y] = mix(px[x, y], (220, 225, 255), 0.9 * tw)
+    for i in range(6):  # estrellas grandes en cruz
+        x, y = rnd.randrange(2, W - 2), rnd.randrange(2, 40)
+        tw = 0.6 + 0.4 * math.sin(TAU * (t + i * 0.29))
+        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+            c = (255, 250, 230) if (dx, dy) == (0, 0) else (200, 210, 255)
+            px[x + dx, y + dy] = mix(px[x + dx, y + dy], c, 1.0 if (dx, dy) == (0, 0) else 0.6 * tw)
+
+    # luna llena con cráteres
+    mx, my, mr = 214, 24, 12  # a la derecha del logo para que no lo tape
+    for y in range(my - mr - 1, my + mr + 2):
+        for x in range(mx - mr - 1, mx + mr + 2):
+            d = math.hypot(x - mx, y - my)
+            if d <= mr:
+                px[x, y] = jitter(mix((236, 236, 214), (196, 198, 184), max(0, (x - mx + y - my) / (2 * mr))), rnd, 3)
+            elif d <= mr + 3:
+                px[x, y] = mix(px[x, y], (120, 140, 170), 0.25)
+    for cx, cy, cr in ((mx - 4, my - 4, 3), (mx + 5, my + 4, 2), (mx - 2, my + 6, 1.5), (mx + 6, my - 5, 1.5)):
+        for y in range(int(cy - cr), int(cy + cr) + 1):
+            for x in range(int(cx - cr), int(cx + cr) + 1):
+                if math.hypot(x - cx, y - cy) <= cr:
+                    px[x, y] = (178, 180, 168)
+
+    def ridge(base, amp, seed, freq):
+        r = random.Random(seed)
+        ph = [r.random() * 6.28 for _ in range(3)]
+        return [base - amp * (0.55 * math.sin(x * freq + ph[0]) + 0.3 * math.sin(x * freq * 2.7 + ph[1]) + 0.15 * math.sin(x * freq * 6.3 + ph[2])) for x in range(W)]
+
+    far = ridge(62, 18, 11, 0.04)
+    for x in range(W):
+        top = int(far[x - x % 2]) // 2 * 2
+        for y in range(max(0, top), water):
+            # nieve solo en las cumbres altas, más gruesa cuanto más alta
+            snow = top < 58 and y - top < 2 + (58 - top) // 3
+            px[x, y] = jitter((190, 202, 220) if snow else mix((58, 72, 110), (36, 46, 76), (y - top) / 30), rnd, 3)
+    near = ridge(78, 6, 4, 0.06)
+    for x in range(W):
+        top = int(near[x - x % 2]) // 2 * 2
+        for y in range(top, water):
+            px[x, y] = jitter((20, 30, 48), rnd, 2)
+    for x0 in range(2, W, 5):  # pinos
+        if rnd.random() < 0.35:
+            continue
+        base = int(near[x0]) // 2 * 2
+        hgt = rnd.randint(6, 11)
+        for i in range(hgt):
+            half = (i * 3) // hgt
+            for dx in range(-half, half + 1):
+                if 0 <= x0 + dx < W:
+                    px[x0 + dx, base - hgt + i] = jitter((16, 26, 40), rnd, 2)
+
+    # orilla de bloques a la derecha (abajo a la izquierda queda agua tranquila)
+    blk = 4
+    shore = {}
+    for c in range(W // blk):
+        x = c * blk
+        if x < W * 0.6:
+            continue
+        top = water - 4 - (4 if x > W * 0.72 else 0) - (4 if x > W * 0.86 else 0)
+        shore[c] = top
+        for xx in range(x, x + blk):
+            for y in range(top, H):
+                depth = y - top
+                col = (52, 92, 52) if depth < 1 else (70, 50, 38) if (y // blk + c) % 2 else (62, 44, 34)
+                px[xx, y] = jitter(mix(col, (8, 10, 18), min(0.8, 0.45 + depth / 50)), rnd, 3)
+
+    # cabaña con la ventana encendida (la luz parpadea un poco, como una vela)
+    cb = int(W * 0.78) // blk
+    gx, gy = cb * blk, shore[cb]
+    wall_w, wall_h = 18, 9
+    for y in range(gy - wall_h, gy):
+        for x in range(gx, gx + wall_w):
+            px[x, y] = jitter((86, 58, 38) if (y - gy) % 3 else (66, 44, 30), rnd, 4)
+    for i in range(7):
+        for x in range(gx - 2 + i, gx + wall_w + 2 - i):
+            px[x, gy - wall_h - 1 - i] = jitter(RED_DARK if i % 2 else RED_DEEPER, rnd, 5)
+    for y in range(gy - wall_h - 9, gy - wall_h - 3):
+        for x in range(gx + 13, gx + 15):
+            px[x, y] = jitter((70, 66, 70), rnd, 4)
+    for i in range(12):  # humo que sube y se va
+        k = (i + t * 12) % 12
+        sx = gx + 14 + int(round(2 * math.sin(k * 0.8 + TAU * t)))
+        sy = gy - wall_h - 10 - int(k * 2)
+        if 0 <= sy:
+            px[sx, sy] = mix(px[sx, sy], (150, 155, 170), max(0.0, 0.6 - k * 0.05))
+    flicker = 0.85 + 0.1 * math.sin(TAU * 3 * t) + 0.05 * math.sin(TAU * 7 * t + 1)
+    wx, wy = gx + 4, gy - 7
+    snap = img.copy()
+    spx = snap.load()
+    for y in range(H):
+        for x in range(W):
+            d = math.hypot((x - wx - 2) * 0.9, y - wy - 1)
+            if d < 22:
+                px[x, y] = mix(spx[x, y], (255, 170, 80), (1 - d / 22) ** 2 * 0.35 * flicker)
+    for y in range(wy, wy + 4):
+        for x in range(wx, wx + 5):
+            px[x, y] = mix((200, 130, 60), (255, 205, 115), flicker) if (x - wx) != 2 and (y - wy) != 1 else (120, 76, 40)
+    for y in range(gy - 5, gy):
+        for x in range(gx + 11, gx + 14):
+            px[x, y] = (46, 30, 22)
+    for x in range(gx - 14, gx):  # muelle
+        px[x, water] = (78, 54, 36)
+        if x % 5 == 0:
+            for y in range(water + 1, water + 4):
+                px[x, y] = (54, 38, 26)
+
+    # luciérnagas cerca de la orilla
+    for i in range(7):
+        fx = int(W * 0.66 + 26 * (0.5 + 0.5 * math.sin(TAU * t + i * 1.9)) + i * 5) % W
+        fy = int(water - 12 + 6 * math.sin(TAU * 2 * t + i * 2.3))
+        glow = 0.5 + 0.5 * math.sin(TAU * (t * 2 + i * 0.31))
+        if glow > 0.25:
+            px[fx, fy] = mix(px[fx, fy], (220, 255, 140), glow)
+
+    # agua: reflejo ondulado de lo de arriba + camino de luz de la luna que brilla
+    above = img.copy()
+    apx = above.load()
+    for y in range(water, H):
+        d = y - water
+        src_y = water - 1 - d
+        for x in range(W):
+            if x >= W * 0.6 and px[x, y] != apx[x, y] and y > water:
+                continue  # la orilla tapa el agua
+            ripple = int(round(math.sin(y * 1.7 + x * 0.05 + TAU * 2 * t) * (1 + d / 20)))
+            sx = min(W - 1, max(0, x + ripple))
+            refl = apx[sx, src_y] if src_y >= 0 else (10, 14, 28)
+            c = mix(refl, mix((14, 24, 46), (6, 10, 22), d / (H - water)), 0.55 + d / (H - water) * 0.3)
+            if abs(x - mx) < max(2, 7 - d // 4) and (y + x // 3 + int(t * 6)) % 3 == 0 and d < 40:
+                c = mix(c, (220, 225, 210), 0.55 - d / 90)
+            if x < W * 0.6 or px[x, y] == apx[x, y]:
+                px[x, y] = c
+    for x in range(W):
+        if px[x, water - 1][2] > 40 and x < W * 0.6:
+            px[x, water] = mix(px[x, water], (120, 160, 190), 0.4)
+    return img
+
+
+def background():
+    return upscale(lake_frame(0.0), 8)
+
+
+def background_animated(path, frames=None, ms=None, scale=4):
+    """Guarda la escena animada como APNG (FancyMenu la reproduce en loop)."""
+    frames, ms = frames or BG_FRAMES, ms or BG_MS
+    imgs = [upscale(lake_frame(i / frames), scale) for i in range(frames)]
+    imgs[0].save(path, format='PNG', save_all=True, append_images=imgs[1:], duration=ms, loop=0, optimize=True)
+    return path
+
+
+# ------------------------------------------------------------------ isla flotante para el personaje del menú
+def floating_island(w=64, h=40, seed=21):
+    """Islita de pasto y tierra (1 px = 1 unidad de la interfaz). La superficie está en y=4."""
+    rnd = random.Random(seed)
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    top = 4
+    cx = w / 2
+    # ancho de cada fila: lleno arriba y se afina hacia abajo con bordes irregulares, de a 2 px (bloques)
+    rows = {}
+    for y in range(top, h):
+        d = (y - top) / (h - top - 1)
+        half = (w / 2 - 2) * (1 - d ** 1.4) + rnd.uniform(-1.5, 1.5) * d
+        if half < 1:
+            break
+        rows[y] = (int(cx - half) // 2 * 2, int(cx + half + 1) // 2 * 2)
+    for y, (x0, x1) in rows.items():
+        for x in range(x0, x1):
+            depth = y - top
+            edge = x in (x0, x1 - 1) or (y + 1) not in rows or not (rows[y + 1][0] <= x < rows[y + 1][1])
+            if depth < 3:
+                c = jitter((92, 158, 64) if depth == 0 else (70, 128, 50), rnd, 8)  # pasto
+            elif depth < 5 and rnd.random() < 0.5:
+                c = jitter((70, 128, 50), rnd, 8)  # pasto que cae por el borde
+            elif rnd.random() < 0.12:
+                c = jitter((120, 116, 120), rnd, 10)  # piedritas
+            else:
+                c = jitter((122, 84, 58) if (x // 2 + y // 2) % 3 else (106, 72, 50), rnd, 6)  # tierra
+            if edge and depth >= 3:
+                c = mix(c, INK, 0.45)  # sombra en el borde de abajo
+            if x == x0 or x == x1 - 1:
+                c = mix(c, INK, 0.25)
+            px[x, y] = hexa(mix(c, (20, 26, 48), 0.22))  # un poco del azul de la noche
+    x0, x1 = rows[top]
+    for x in range(x0, x1):  # pasto alto arriba
+        if rnd.random() < 0.35:
+            for yy in range(top - rnd.randint(1, 2), top):
+                px[x, yy] = hexa(mix(jitter((104, 176, 70), rnd, 10), (20, 26, 48), 0.2))
+    fx = x0 + 6  # una flor roja
+    px[fx, top - 1] = hexa((60, 120, 50))
+    px[fx, top - 2] = hexa(RED)
+    px[fx - 1, top - 3] = hexa(RED_LIGHT)
+    px[fx + 1, top - 3] = hexa(RED_LIGHT)
+    px[fx, top - 3] = hexa((255, 220, 90))
+    for _ in range(6):  # raíces colgando
+        y = max(rows) - rnd.randint(4, 12)
+        if y not in rows:
+            continue
+        x = rnd.randint(rows[y][0] + 1, rows[y][1] - 2)
+        for yy in range(y, min(h, y + rnd.randint(3, 8))):
+            if px[x, yy][3] == 0:
+                px[x, yy] = hexa((70, 52, 40))
+    return img
+
+
+def soft_glow(w=90, h=110, color=(120, 200, 190)):
+    """Luz suave detrás del personaje, en tramado para que siga siendo pixel art."""
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    for y in range(h):
+        for x in range(w):
+            d = math.hypot((x - w / 2) / (w / 2), (y - h * 0.62) / (h * 0.55))
+            a = max(0.0, 1 - d) ** 1.5
+            if a * 16 > bayer[y % 4][x % 4]:
+                px[x, y] = (*color, int(40 + 50 * a))
+    return img
+
+
+# ------------------------------------------------------------------ barra de carga (pantallas de carga)
+def loading_bar(w=200, h=10, filled=True, seed=9):
+    rnd = random.Random(seed)
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            if x in (0, w - 1) or y in (0, h - 1):
+                px[x, y] = hexa(INK)
+            elif filled:
+                c = RED_LIGHT if y == 1 else RED_DARK if y >= h - 3 else RED
+                px[x, y] = hexa(jitter(c, rnd, 5))
+            else:
+                px[x, y] = hexa(jitter((30, 26, 28), rnd, 3))
+    return img
+
+
+# ------------------------------------------------------------------ animación de entrada (game intro)
+def draw_title(px, W, H, ox, oy, k, drops, shine=None, title='CACHUSAFIO'):
+    """Dibuja el título letra por letra con contorno y volumen. drops[i] = desplazamiento vertical de la letra i
+    (None = todavía no aparece). shine = diagonal (en celdas) del destello, o None."""
+    x0 = 0
+    for i, ch in enumerate(title):
+        g = FONT[ch]
+        face = {(x0 + cx, cy) for cy, row in enumerate(g) for cx, c in enumerate(row) if c == '#'}
+        w = len(g[0])
+        if drops[i] is not None:
+            dy = drops[i]
+            extr = {(x, y + d) for x, y in face for d in (1, 2)} - face
+            outline = dilate(face | extr) - face - extr
+            layers = [(outline, lambda x, y: INK), (extr, lambda x, y: RED_DEEPER if y >= 7 else RED_DARK),
+                      (face, lambda x, y: mix(mix(RED_LIGHT, RED_DARK, y / 6), WHITE, 0.3 if y == 0 else 0))]
+            for cells, col in layers:
+                for cx, cy in cells:
+                    c = col(cx, cy)
+                    if shine is not None and cells is face and abs((cx + cy) - shine) <= 1:
+                        c = mix(c, WHITE, 0.75)
+                    for yy in range(k):
+                        for xx in range(k):
+                            X, Y = ox + cx * k + xx, oy + int(dy) + cy * k + yy
+                            if 0 <= X < W and 0 <= Y < H:
+                                px[X, Y] = c
+        x0 += w + 2
+
+
+# El logo termina en la intro donde lo pone el menú (fancymenu-layout.js usa los mismos números):
+# 136×22 px de una escena de 240×135, centrado y a 18 px del borde de arriba.
+INTRO_LOGO = {'scene_w': 240, 'scene_h': 135, 'w': 136, 'h': 22, 'top': 18}
+BG_FRAMES, BG_MS = 36, 110  # fondo animado del menú
+INTRO_FRAMES, INTRO_MS = 52, 70
+
+
+def intro_frames(frames=INTRO_FRAMES):
+    """Escena que aparece desde negro, las letras del logo caen una por una, destello, subtítulo, y termina
+    en el mismo cuadro con que empieza el menú (mismo logo, mismo lugar, mismo momento del fondo)."""
+    W, H = INTRO_LOGO['scene_w'], INTRO_LOGO['scene_h']
+    small = logo().resize((INTRO_LOGO['w'], INTRO_LOGO['h']), Image.NEAREST)  # los píxeles exactos de logo.png
+    k = INTRO_LOGO['w'] // 68  # 2 px por celda (el logo tiene 68 celdas de ancho)
+    title = 'CACHUSAFIO'
+    # columnas de cada letra (en celdas, con su contorno), igual que las dibuja logo()
+    spans, x0 = [], 1
+    for ch in title:
+        w = len(FONT[ch][0])
+        spans.append((x0 - 1, x0 + w + 1))
+        x0 += w + 2
+    ox, oy = (W - INTRO_LOGO['w']) // 2, INTRO_LOGO['top']
+    sub, sw, _ = text_mask('EL DESAFÍO DE LAS KILAS')
+    loop = BG_FRAMES * BG_MS
+    out = []
+    for f in range(frames):
+        # el fondo avanza al mismo ritmo que el del menú y el último cuadro cae justo en su cuadro 0
+        t = (((f - (frames - 1)) * INTRO_MS) / loop) % 1
+        img = lake_frame(t).convert('RGB')
+        px = img.load()
+        fade_in = min(1.0, f / 8)
+        dim = 0.35 * (1 - max(0.0, (f - 42) / (frames - 1 - 42)))  # al final se aclara hasta quedar como el menú
+        for y in range(H):
+            for x in range(W):
+                px[x, y] = mix((0, 0, 0), mix(px[x, y], (4, 6, 14), dim), fade_in)
+        for i, (c0, c1) in enumerate(spans):
+            tt = (f - (6 + i * 2)) / 6
+            if tt < 0:
+                continue
+            dy = -70 * (1 - tt) ** 2 if tt < 1 else -3 * math.sin((tt - 1) * 2 * math.pi) if tt < 1.5 else 0
+            shine = (f - 30) * 4 - 6 if 30 <= f <= 40 else None
+            for yy in range(INTRO_LOGO['h']):
+                for xx in range(c0 * k, c1 * k):
+                    r, g, b, a = small.getpixel((xx, yy))
+                    if a == 0:
+                        continue
+                    c = (r, g, b)
+                    if shine is not None and (r, g, b) != INK and abs(xx // k + yy // k - shine) <= 1:
+                        c = mix(c, WHITE, 0.7)
+                    X, Y = ox + xx, oy + int(dy) + yy
+                    if 0 <= Y < H:
+                        px[X, Y] = c
+        # subtítulo: aparece y se va antes del final (el menú no lo tiene)
+        a = min(1.0, (f - 34) / 5) if f < 44 else max(0.0, 1 - (f - 44) / 5)
+        if f >= 34 and a > 0:
+            sx, sy = (W - sw) // 2, oy + INTRO_LOGO['h'] + 6
+            for cx, cy in sub:
+                px[sx + cx, sy + cy] = mix(px[sx + cx, sy + cy], WHITE, a)
+        out.append(img)
+    return out
+
+
+def intro_animated(path, scale=4, ms=INTRO_MS):
+    imgs = [upscale(f, scale) for f in intro_frames()]
+    # loop=1: se reproduce una sola vez (FancyMenu pasa al menú al terminar)
+    imgs[0].save(path, format='PNG', save_all=True, append_images=imgs[1:], duration=ms, loop=1, optimize=True)
+
+
+def blip(path, freq=880, ms=45, vol=0.18, slide=1.0):
+    """Sonido corto (wav) para los botones: un "tic" suave, sin archivos de terceros."""
+    import struct
+    import wave
+    rate = 44100
+    n = int(rate * ms / 1000)
+    with wave.open(str(path), 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        frames = bytearray()
+        phase = 0.0
+        for i in range(n):
+            f = freq * (1 + (slide - 1) * i / n)
+            phase += 2 * math.pi * f / rate
+            env = min(1, i / 60) * (1 - i / n) ** 2  # ataque rápido y se apaga suave
+            # onda cuadrada suavizada: suena "retro" sin ser chillona
+            v = math.tanh(3 * math.sin(phase)) * env * vol
+            frames += struct.pack('<h', int(v * 32767))
+        w.writeframes(bytes(frames))
+
+
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else 'art')
     out.mkdir(parents=True, exist_ok=True)
@@ -369,7 +806,24 @@ def main():
     modpack_icon().save(out / 'icon.png')
     logo().save(out / 'logo.png')
     background().save(out / 'background.png', optimize=True)
-    for f in sorted(out.glob('*.png')):
+    background_sunset().save(out / 'background-atardecer.png', optimize=True)
+    background_animated(out / 'background.apng')
+    # para todos los botones y deslizadores del juego (opciones globales de FancyMenu, con nine-slice)
+    button(98, 20, 'inactive').save(out / 'btn-inactive.png')
+    button(8, 20, 'primary', seed=11).save(out / 'slider-handle.png')
+    button(8, 20, 'primary', hover=True, seed=11).save(out / 'slider-handle-hover.png')
+    floating_island().save(out / 'island.png')
+    soft_glow().save(out / 'glow.png')
+    loading_bar().save(out / 'loading-bar.png')
+    loading_bar(filled=False).save(out / 'loading-bar-bg.png')
+    intro_animated(out / 'intro.apng')
+    blip(out / 'hover.wav', freq=660, ms=40, vol=0.12, slide=1.3)
+    blip(out / 'click.wav', freq=520, ms=70, vol=0.2, slide=0.6)
+    button(200, 24).save(out / 'btn-play.png')
+    button(200, 24, hover=True).save(out / 'btn-play-hover.png')
+    button(98, 20, 'dark').save(out / 'btn.png')
+    button(98, 20, 'dark', hover=True).save(out / 'btn-hover.png')
+    for f in sorted([*out.glob('*.png'), *out.glob('*.apng')]):
         with Image.open(f) as im:
             print(f'{f.name}: {im.width}x{im.height}, {f.stat().st_size // 1024} KB')
 

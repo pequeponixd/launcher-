@@ -33,10 +33,10 @@ const T = {
     settings: 'Ajustes', ram: 'Memoria RAM', ramWarn: 'Tu PC tiene {total} GB: deja al menos 2–3 GB para el sistema.',
     gpu: 'Usar gráfica NVIDIA', gpuHint: 'Solo Linux con gráfica Intel/AMD + NVIDIA. Actívalo si en el juego (F3) aparece Intel o Mesa.',
     openFolder: 'Abrir carpeta del modpack', openLog: 'Ver último log',
+    discord: 'Mostrar en Discord', discordHint: 'Tus amigos ven "Jugando Cachusafio" en tu perfil.',
     hideOnLaunch: 'Ocultar el launcher mientras juegas', hideOnLaunchHint: 'Vuelve a aparecer al cerrar Minecraft.',
     secGame: 'Juego', secLauncher: 'Launcher', secPack: 'Este modpack',
-    removePack: 'Quitar modpack', removeSure: '¿Quitar "{name}"? También puedes borrar sus archivos del disco.',
-    removeKeep: 'Quitar (conservar archivos)', removeDelete: 'Quitar y borrar archivos',
+    removePack: 'Quitar modpack', removeSure: '¿Quitar "{name}" de la lista?',
     noAccount: 'Primero inicia sesión.', noPack: 'No hay modpack seleccionado.',
     alreadyRunning: 'El juego ya se está ejecutando.', alreadyAdded: 'Ese modpack ya está agregado.',
     invalidName: 'El nombre debe tener 3–16 caracteres: letras, números o guion bajo.',
@@ -45,7 +45,7 @@ const T = {
     offlinePack: 'Sin conexión: usando datos guardados', logout: 'Quitar cuenta',
     sound: 'Sonidos', volume: 'Volumen',
     kill: 'Cerrar juego', killSure: '¿Forzar el cierre de Minecraft? Se pierde lo que no se haya guardado.',
-    update: 'Versión {v} disponible — descargar',
+    update: 'Versión {v} disponible. Descargar',
     crashTitle: 'Minecraft se cerró con error',
     crashSub: 'Código {code}. Estas son las últimas líneas del log; si pides ayuda, copia y pega esto.',
     copy: 'Copiar', copied: 'Copiado',
@@ -55,6 +55,10 @@ const T = {
     updDownloading: 'Descargando actualización del launcher… {p}%', updReady: 'Reiniciar para actualizar a {v}',
     secCustom: 'Personalizar (solo en este PC)', icon: 'Icono', background: 'Fondo', logo: 'Logo', color: 'Color',
     change: 'Cambiar', reset: 'Restaurar', before: 'antes',
+    serverTitle: 'En el servidor', serverNone: 'Este modpack todavía no tiene servidor.', nobody: 'No hay nadie conectado.',
+    playersHidden: 'El servidor no muestra quién está conectado.', more: 'y {n} más', nickRule: '3 a 16 letras, números o guion bajo',
+    updateFinding: 'Actualización lista: {changes}. Se descarga al darle Jugar.',
+    modNew1: '1 mod nuevo', modNewN: '{n} mods nuevos', modUp1: '1 actualizado', modUpN: '{n} actualizados', modRm1: '1 quitado', modRmN: '{n} quitados', and: 'y',
   },
   en: {
     'login.title': 'Sign in',
@@ -86,10 +90,10 @@ const T = {
     settings: 'Settings', ram: 'RAM', ramWarn: 'Your PC has {total} GB: leave at least 2–3 GB for the system.',
     gpu: 'Use NVIDIA GPU', gpuHint: 'Linux only, with Intel/AMD + NVIDIA graphics. Turn it on if the game (F3) shows Intel or Mesa.',
     openFolder: 'Open modpack folder', openLog: 'View last log',
+    discord: 'Show on Discord', discordHint: 'Your friends see "Playing Cachusafio" on your profile.',
     hideOnLaunch: 'Hide the launcher while playing', hideOnLaunchHint: 'It comes back when Minecraft closes.',
     secGame: 'Game', secLauncher: 'Launcher', secPack: 'This modpack',
-    removePack: 'Remove modpack', removeSure: 'Remove "{name}"? You can also delete its files from disk.',
-    removeKeep: 'Remove (keep files)', removeDelete: 'Remove and delete files',
+    removePack: 'Remove modpack', removeSure: 'Remove "{name}" from the list?',
     noAccount: 'Please log in first.', noPack: 'No modpack selected.',
     alreadyRunning: 'The game is already running.', alreadyAdded: 'That modpack is already added.',
     invalidName: 'Name must be 3–16 characters: letters, numbers or underscore.',
@@ -98,7 +102,7 @@ const T = {
     offlinePack: 'Offline: using saved data', logout: 'Remove account',
     sound: 'Sounds', volume: 'Volume',
     kill: 'Close game', killSure: 'Force Minecraft to close? Anything not saved will be lost.',
-    update: 'Version {v} available — download',
+    update: 'Version {v} available. Download',
     crashTitle: 'Minecraft closed with an error',
     crashSub: 'Code {code}. These are the last lines of the log; if you ask for help, copy and paste this.',
     copy: 'Copy', copied: 'Copied',
@@ -108,6 +112,10 @@ const T = {
     updDownloading: 'Downloading launcher update… {p}%', updReady: 'Restart to update to {v}',
     secCustom: 'Customize (this PC only)', icon: 'Icon', background: 'Background', logo: 'Logo', color: 'Color',
     change: 'Change', reset: 'Reset', before: 'was',
+    serverTitle: 'On the server', serverNone: 'This modpack has no server yet.', nobody: 'Nobody is online.',
+    playersHidden: 'The server hides who is online.', more: 'and {n} more', nickRule: '3 to 16 letters, numbers or underscore',
+    updateFinding: 'Update ready: {changes}. Downloads when you press Play.',
+    modNew1: '1 new mod', modNewN: '{n} new mods', modUp1: '1 updated', modUpN: '{n} updated', modRm1: '1 removed', modRmN: '{n} removed', and: 'and',
   },
 };
 
@@ -124,6 +132,7 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
   document.querySelectorAll('[data-i18n-ph]').forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
   document.querySelectorAll('[data-i18n-title]').forEach((el) => (el.title = t(el.dataset.i18nTitle)));
+  document.querySelectorAll('[data-i18n-label]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nLabel)));
   $('lang-login').value = lang;
 }
 
@@ -138,6 +147,7 @@ const initials = (name = '?') => {
   return (w.length > 1 ? w[0][0] + w[1][0] : name.slice(0, 2)).toUpperCase();
 };
 
+const MISSING = '\u2014'; // valor que falta (raya gris), no un cero
 const LOADERS = { forge: 'Forge', neoforge: 'NeoForge', fabric: 'Fabric', quilt: 'Quilt', vanilla: 'Vanilla' };
 
 const curPack = () => S.packs.find((p) => p.id === S.selectedPack) || S.packs[0] || null;
@@ -230,19 +240,31 @@ function renderStage() {
   bg.classList.toggle('img', !!p?.background);
   bg.classList.toggle('empty', !p?.background);
 
+  // portada: el arte del modpack con su logo; el título de la pantalla es siempre el nombre
   const logo = $('hero-logo');
+  logo.classList.toggle('hidden', !p?.logo);
   if (p?.logo) {
     logo.src = p.logo;
-    logo.classList.remove('hidden');
-    $('hero-title').classList.add('hidden');
-  } else {
-    logo.classList.add('hidden');
-    $('hero-title').classList.remove('hidden');
-    $('hero-title').textContent = p ? p.name : t('emptyTitle');
+    logo.alt = p.name;
   }
-  $('hero-desc').textContent = p ? p.description || '' : t('emptySub');
-  const chips = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader, p.version && 'v' + p.version] : [];
-  $('hero-meta').innerHTML = chips.filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
+  $('cover').classList.toggle('hidden', !p);
+  $('hero-title').textContent = p ? p.name : t('emptyTitle');
+  $('crumb').textContent = p ? p.description || '' : '';
+  // la línea bajo el título dice lo más importante: si hay actualización, eso; si no, versión y loader
+  const pend = p?.pending;
+  const count = (k) => (pend ? pend[k].length : 0);
+  if (pend && count('added') + count('updated') + count('removed')) {
+    const parts = [
+      count('added') && t(count('added') === 1 ? 'modNew1' : 'modNewN', { n: count('added') }),
+      count('updated') && t(count('updated') === 1 ? 'modUp1' : 'modUpN', { n: count('updated') }),
+      count('removed') && t(count('removed') === 1 ? 'modRm1' : 'modRmN', { n: count('removed') }),
+    ].filter(Boolean);
+    const joined = parts.length > 1 ? parts.slice(0, -1).join(', ') + ` ${t('and')} ` + parts[parts.length - 1] : parts[0];
+    $('hero-desc').innerHTML = esc(t('updateFinding', { changes: joined })).replace(/^([^:]+:)/, '<b>$1</b>');
+  } else {
+    $('hero-desc').textContent = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader, p.version && 'v' + p.version].filter(Boolean).join(' · ') : t('emptySub');
+  }
+  $('hero-meta').textContent = p ? [p.minecraft && 'Minecraft ' + p.minecraft, LOADERS[p.loader] || p.loader].filter(Boolean).join(' · ') : '';
   renderNews(p);
   if (stagePackId !== lastServerPack) refreshServer();
   $('btn-play').disabled = !p || busy;
@@ -262,14 +284,14 @@ function renderNews(p) {
   const title = p.pending ? t('newsPending') : t('newsLast') + (p.version ? ` · v${esc(p.version)}` : '');
   const sub = p.pending ? t('newsPendingSub') : date;
   let body = '';
-  if (notes.length) body += `<h5>${t('newsNotes')}</h5><ul>${list('note', notes.map(esc))}</ul>`;
-  if (ch?.added.length) body += `<h5>${t('newsAdded')}</h5><ul>${list('add', ch.added.map(esc))}</ul>`;
+  if (notes.length) body += `<div><h5>${t('newsNotes')}</h5><ul>${list('note', notes.map(esc))}</ul></div>`;
+  if (ch?.added.length) body += `<div><h5>${t('newsAdded')}</h5><ul>${list('add', ch.added.map(esc))}</ul></div>`;
   if (ch?.updated.length) {
     // si cambió el nombre del archivo se muestra "antes → ahora"; si no, solo el nombre
     const up = ch.updated.map((u) => (u.from === u.to ? esc(u.to) : `${esc(u.to)} <small>(${t('before')} ${esc(u.from)})</small>`));
-    body += `<h5>${t('newsUpdated')}</h5><ul>${list('up', up)}</ul>`;
+    body += `<div><h5>${t('newsUpdated')}</h5><ul>${list('up', up)}</ul></div>`;
   }
-  if (ch?.removed.length) body += `<h5>${t('newsRemoved')}</h5><ul>${list('rm', ch.removed.map(esc))}</ul>`;
+  if (ch?.removed.length) body += `<div><h5>${t('newsRemoved')}</h5><ul>${list('rm', ch.removed.map(esc))}</ul></div>`;
   box.innerHTML = `<header><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</header><div class="body">${body}</div>`;
   box.classList.remove('hidden');
 }
@@ -279,17 +301,57 @@ async function refreshServer() {
   const p = curPack();
   lastServerPack = p ? p.id : null;
   const el = $('server');
-  if (!p?.server) return el.classList.add('hidden');
+  // sin servidor el panel mantiene su marco y lo dice en una frase
+  if (!p?.server) {
+    el.className = 'server';
+    el.textContent = t('serverNone');
+    $('server-count').textContent = MISSING;
+    $('server-max').textContent = '';
+    $('heads').innerHTML = '';
+    return;
+  }
   if (el.dataset.pack !== p.id) {
     el.dataset.pack = p.id;
     el.className = 'server';
     el.textContent = t('serverChecking');
+    $('server-count').textContent = MISSING;
+    $('server-max').textContent = '';
+    $('heads').innerHTML = '';
   }
   const r = await api.serverStatus(p.id).catch(() => null);
   if (curPack()?.id !== p.id) return; // cambió de modpack mientras esperaba
   el.classList.toggle('on', !!r?.online);
-  el.textContent = r?.online ? t('serverOn', r.players) : t('serverOff');
-  el.title = r?.online ? [r.motd, r.version, r.latency + ' ms'].filter(Boolean).join('\n') : '';
+  el.textContent = r?.online ? [p.server, r.latency != null && `${r.latency} ms`].filter(Boolean).join(' · ') : t('serverOff');
+  el.title = r?.online ? [r.motd, r.version].filter(Boolean).join('\n') : '';
+  $('server-count').textContent = r?.online ? r.players.online : MISSING;
+  $('server-max').textContent = r?.online ? `/ ${r.players.max}` : '';
+  renderHeads(r?.online ? r.players : null);
+}
+
+// Quién está conectado: cara y nombre, hasta 5 filas y "y N más"
+function renderHeads(players) {
+  const box = $('heads');
+  box.innerHTML = '';
+  if (!players) return;
+  const list = players.sample || [];
+  if (!list.length) {
+    box.innerHTML = `<li class="empty">${esc(players.online ? t('playersHidden') : t('nobody'))}</li>`;
+    return;
+  }
+  const MAX = 5;
+  for (const pl of list.slice(0, MAX)) {
+    const li = document.createElement('li');
+    const im = document.createElement('img');
+    im.alt = '';
+    im.src = head({ type: 'microsoft', uuid: pl.id }, 32);
+    im.onerror = () => { im.onerror = null; im.src = STEVE; };
+    const name = document.createElement('span');
+    name.textContent = pl.name;
+    li.append(im, name);
+    box.appendChild(li);
+  }
+  const more = Math.max(players.online || 0, list.length) - Math.min(list.length, MAX);
+  if (more > 0) box.insertAdjacentHTML('beforeend', `<li class="more">${esc(t('more', { n: more }))}</li>`);
 }
 setInterval(() => S?.accounts.length && !document.hidden && refreshServer(), 60000);
 
@@ -394,7 +456,7 @@ function openAccountMenu() {
   for (const a of S.accounts) {
     const row = document.createElement('div');
     row.className = 'acc' + (a.id === curAcc()?.id ? ' sel' : '');
-    row.innerHTML = `<img alt=""><div class="n"><b></b><small></small></div><button class="x" title="${t('logout')}">✕</button>`;
+    row.innerHTML = `<img alt=""><div class="n"><b></b><small></small></div><button class="x" title="${t('logout')}" aria-label="${t('logout')}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>`;
     const im = row.querySelector('img');
     im.src = head(a);
     im.onerror = () => { im.onerror = null; im.src = STEVE; };
@@ -505,6 +567,7 @@ $('btn-settings').onclick = async () => {
     <input type="range" id="ram" min="2" max="${max}" step="1" value="${Math.min(S.settings.ramGb, max)}">
     <p class="hint warn" id="ram-warn" style="font-size:12px;min-height:16px">${ramWarn(S.settings.ramGb)}</p>
     ${S.platform === 'linux' ? `<div class="row"><span>${t('gpu')}<small class="hint">${t('gpuHint')}</small></span>${toggle('gpu-on')}</div>` : ''}
+    ${S.discordAvailable ? `<div class="row"><span>${t('discord')}<small class="hint">${t('discordHint')}</small></span>${toggle('discord-on')}</div>` : ''}
     <div class="row"><span>${t('hideOnLaunch')}<small class="hint">${t('hideOnLaunchHint')}</small></span>${toggle('hide-on')}</div>
     <h4>${t('secLauncher')}</h4>
     <div class="row"><span>${t('lang')}</span><select id="d-lang"><option value="es">Español</option><option value="en">English</option></select></div>
@@ -533,6 +596,10 @@ $('btn-settings').onclick = async () => {
     $('gpu-on').checked = !!S.settings.nvidiaGpu;
     $('gpu-on').onchange = async (e) => { S.settings.nvidiaGpu = e.target.checked; await api.setSettings({ nvidiaGpu: e.target.checked }); };
   }
+  if ($('discord-on')) {
+    $('discord-on').checked = S.settings.discord !== false;
+    $('discord-on').onchange = async (e) => { S.settings.discord = e.target.checked; await api.setSettings({ discord: e.target.checked }); };
+  }
   $('hide-on').checked = !!S.settings.hideOnLaunch;
   $('hide-on').onchange = async (e) => { S.settings.hideOnLaunch = e.target.checked; await api.setSettings({ hideOnLaunch: e.target.checked }); };
   $('d-lang').onchange = (e) => { setLang(e.target.value); $('btn-settings').click(); };
@@ -553,18 +620,16 @@ $('btn-settings').onclick = async () => {
     $('d-accent').onchange = (e) => custom('accent', e.target.value);
     $('d-remove').onclick = () => {
       dialog(`<h3>${t('removePack')}</h3><p class="sub">${t('removeSure', { name: esc(p.name) })}</p>
-        <div class="actions"><button class="btn" id="d-cancel">${t('cancel')}</button><button class="btn" id="d-keep">${t('removeKeep')}</button><button class="btn danger" id="d-del">${t('removeDelete')}</button></div>`);
+        <div class="actions"><button class="btn" id="d-cancel">${t('cancel')}</button><button class="btn danger" id="d-ok">${t('removePack')}</button></div>`);
       $('d-cancel').onclick = closeDialog;
-      const rm = async (del) => {
-        const r = await api.removePack(p.id, del);
+      $('d-ok').onclick = async () => {
+        const r = await api.removePack(p.id);
         S.packs = r.packs;
         S.selectedPack = r.selectedPack;
         closeDialog();
         renderRail();
         renderStage();
       };
-      $('d-keep').onclick = () => rm(false);
-      $('d-del').onclick = () => rm(true);
     };
   }
 };

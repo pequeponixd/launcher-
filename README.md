@@ -1,4 +1,4 @@
-# Cachusafio Launcher 3.1
+# Cachusafio Launcher 3.2
 
 Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo abren, inician sesión (cuenta Microsoft u offline) y le dan **Play**. No hay IP en el launcher: el botón para entrar al servidor lo pones tú en el menú principal con **FancyMenu**, dentro del modpack.
 
@@ -12,10 +12,16 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - **Novedades**: muestra qué mods se agregaron, actualizaron o quitaron desde la última vez que jugaste, más las notas que escribas en `changelog`.
 - **Estado del servidor**: con `server` en `pack.json` muestra si está prendido y cuántos jugadores hay.
 - Cada jugador puede cambiar el icono, fondo, logo y color de un modpack en **Ajustes → Personalizar** (solo en su PC).
+- **Quién está conectado**: muestra las caras de los jugadores al lado del estado del servidor.
+- **Discord**: tus amigos ven "Jugando Cachusafio" en tu perfil (ver abajo cómo activarlo).
+- **Menú del juego listo**: `node tools/make-menu.js <carpeta-del-modpack> [ip]` genera el menú principal de FancyMenu (fondo, logo, *Jugar en Cachusafio*, Opciones, Salir). Sin IP, el botón abre la lista de servidores; con IP, entra directo.
 - Si Minecraft se cierra con error, muestra las últimas líneas del log para copiarlas y pedir ayuda.
 - Botón para forzar el cierre del juego y opción para ocultar el launcher mientras juegas.
 - La sesión de Microsoft se guarda cifrada con el llavero del sistema.
 - Idiomas: Español / English.
+
+## Discord Rich Presence
+Ya viene activado con la app de Discord de Cachusafio (`discordClientId` en `config.json`). Cada jugador puede apagarlo en **Ajustes → Mostrar en Discord**.
 
 ## Crear el modpack (tú, una vez)
 1. Carpeta `modpack/` con `mods/`, `config/` (incluye `config/fancymenu/`), `resourcepacks/`… y un `pack.json` (copia `tools/pack.example.json`).

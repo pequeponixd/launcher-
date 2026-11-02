@@ -15,6 +15,7 @@ const { loadJvmArgs } = require('./jvmargs');
 const { gpuEnv, withEnv } = require('./gpu');
 const { snapshotMods, diffMods, isEmpty } = require('./changes');
 const { pingServer } = require('./serverping');
+const { DiscordPresence, playingActivity } = require('./discord');
 const { pathToFileURL } = require('url');
 let autoUpdater = null;
 try {
@@ -49,6 +50,7 @@ function logLine(text) {
 let win = null;
 let playing = false;
 let gameProc = null;
+const discord = new DiscordPresence(config.discordClientId, { log: logLine });
 
 /* ---------------------------------------------------------- utilidades */
 
@@ -494,7 +496,8 @@ ipcMain.handle('state:get', async () => {
     selectedPack: s.selectedPack || (s.packs[0] && s.packs[0].id) || null,
     accounts: s.accounts.map(publicAccount),
     selectedAccount: s.selectedAccount || null,
-    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch },
+    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch, discord: s.discord !== false },
+    discordAvailable: !!config.discordClientId,
   };
 });
 
@@ -516,14 +519,13 @@ ipcMain.handle('packs:add', async (_e, input) => {
   }
 });
 
-ipcMain.handle('packs:remove', async (_e, id, deleteFiles) => {
+ipcMain.handle('packs:remove', async (_e, id) => {
   const s = await loadSettings();
   const gone = s.packs.find((p) => p.id === id);
   if (gone && gone.fromDefault) (s.removedDefaults ||= []).push(gone.fromDefault);
   s.packs = s.packs.filter((p) => p.id !== id);
   if (s.selectedPack === id) s.selectedPack = s.packs[0] ? s.packs[0].id : null;
   await saveSettings();
-  if (deleteFiles) await fsp.rm(path.join(INSTANCES, id), { recursive: true, force: true });
   await fsp.rm(path.join(CUSTOM, id), { recursive: true, force: true });
   return { packs: s.packs.map(publicPack), selectedPack: s.selectedPack };
 });
@@ -593,8 +595,13 @@ ipcMain.handle('game:play', async (_e, packId) => {
       status('game.download', { type: e.type }, e.total ? (e.task / e.total) * 100 : null);
     });
     let hidden = false;
+    let shown = false;
     launcher.on('data', (l) => {
       log.write(l + '\n');
+      if (!shown) {
+        shown = true;
+        if (s.discord !== false && config.discordClientId) discord.setActivity(playingActivity(pack.meta || {}, Date.now()));
+      }
       if (s.hideOnLaunch && !hidden && win && !win.isDestroyed()) {
         hidden = true;
         win.hide();
@@ -605,6 +612,7 @@ ipcMain.handle('game:play', async (_e, packId) => {
     launcher.on('close', (code) => {
       const killed = gameProc && gameProc.killedByUser;
       gameProc = null;
+      if (shown) discord.clear();
       playing = false;
       if (hidden && win && !win.isDestroyed()) win.show();
       send('game-state', 'idle');
@@ -628,7 +636,9 @@ ipcMain.handle('game:play', async (_e, packId) => {
         version,
         memory: { max: `${ramGb}G`, min: '1G' },
         customArgs,
-        overrides: { gameDirectory: gameDir },
+        // cwd = carpeta de la instancia: varios mods (FancyMenu, Konkrete…) leen su config con rutas relativas
+        // y sin esto usaban la carpeta raíz del launcher, ignorando la config del modpack
+        overrides: { gameDirectory: gameDir, cwd: gameDir },
       })
     );
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
@@ -682,6 +692,7 @@ ipcMain.handle('settings:set', async (_e, patch) => {
   if (patch.lang) next.lang = patch.lang === 'en' ? 'en' : 'es';
   if (patch.nvidiaGpu != null) next.nvidiaGpu = !!patch.nvidiaGpu;
   if (patch.hideOnLaunch != null) next.hideOnLaunch = !!patch.hideOnLaunch;
+  if (patch.discord != null) next.discord = !!patch.discord;
   const s = await saveSettings(next);
   return { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
 });

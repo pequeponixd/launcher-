@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const net = require('net');
-const { pingServer, varint, readVarint, motdText, resolveAddress } = require('../serverping');
+const { pingServer, varint, readVarint, motdText, resolveAddress, playerSample } = require('../serverping');
 
 test('varint ida y vuelta', () => {
   for (const n of [0, 1, 127, 128, 25565, 2097151, 4294967295]) {
@@ -41,11 +41,12 @@ function fakeServer(status) {
 }
 
 test('pingServer lee jugadores, versión y MOTD', async () => {
-  const srv = await fakeServer({ version: { name: '1.20.1' }, players: { online: 3, max: 20 }, description: { text: 'Hola' } });
+  const sample = [{ name: 'Pequeponi', id: '069a79f4-44e9-4726-a5be-fca90e38aaf5' }];
+  const srv = await fakeServer({ version: { name: '1.20.1' }, players: { online: 3, max: 20, sample }, description: { text: 'Hola' } });
   const r = await pingServer(`127.0.0.1:${srv.address().port}`);
   srv.close();
   assert.strictEqual(r.online, true);
-  assert.deepStrictEqual(r.players, { online: 3, max: 20 });
+  assert.deepStrictEqual(r.players, { online: 3, max: 20, sample });
   assert.strictEqual(r.version, '1.20.1');
   assert.strictEqual(r.motd, 'Hola');
 });
@@ -57,4 +58,15 @@ test('pingServer con el servidor apagado devuelve online: false', async () => {
   srv.close();
   const r = await pingServer(`127.0.0.1:${port}`, { timeoutMs: 1500 });
   assert.strictEqual(r.online, false);
+});
+
+test('playerSample descarta líneas de texto disfrazadas de jugadores', () => {
+  const r = playerSample([
+    { name: 'Steve', id: '8667ba71-b85a-4004-af54-457a9734eed7' },
+    { name: '§aBienvenidos', id: '00000000-0000-0000-0000-000000000000' },
+    { name: 'SinId' },
+    null,
+  ]);
+  assert.deepStrictEqual(r, [{ name: 'Steve', id: '8667ba71-b85a-4004-af54-457a9734eed7' }]);
+  assert.deepStrictEqual(playerSample(undefined), []);
 });
