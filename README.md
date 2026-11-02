@@ -16,14 +16,6 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - **Discord**: tus amigos ven "Jugando Cachusafio" en tu perfil (ver abajo cómo activarlo).
 - **Menú del juego listo**: el launcher genera el menú principal de FancyMenu (fondo, logo, *Jugar en Cachusafio*, Opciones, Salir). Sin IP fija, el botón abre la lista de servidores; con IP, entra directo.
 
-## Panel de administrador (subir mods sin comandos)
-Solo para quien administra el modpack, en su PC:
-1. Clona el repo del modpack (`git clone https://github.com/USUARIO/modpack-…`) y asegúrate de poder hacer `git push` (por ejemplo con `gh auth login`). Para mods de más de 100 MB necesitas también `gh`.
-2. En el launcher: **Ajustes → Administrador → Elegir carpeta** y elige esa carpeta.
-3. Aparece **Administrar** en la barra lateral: arrastra los `.jar`, quita los que sobran con ✕, escribe la versión, la IP del servidor y las notas, y dale **Publicar para todos**.
-
-El launcher trae primero lo que haya en GitHub (para no pisar cambios), sube los mods grandes a un Release, actualiza `pack.json`, el menú de FancyMenu y el `manifest.json`, y hace commit + push con tu cuenta. No guarda contraseñas: en el PC de alguien sin permiso sobre el repo, publicar simplemente falla.
-
 ## Discord Rich Presence
 1. Entra a <https://discord.com/developers/applications> → **New Application** → nómbrala "Cachusafio".
 2. Copia el **Application ID** y ponlo en `config.json` → `"discordClientId": "…"`.

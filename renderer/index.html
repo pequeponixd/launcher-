@@ -13,7 +13,6 @@
     <symbol id="i-log" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M3.75 1.75h6l2.5 2.5v10h-8.5zM6 7h4M6 10h4"/></symbol>
     <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
     <symbol id="i-plus" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M8 3v10M3 8h10"/></symbol>
-    <symbol id="i-wrench" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M10.5 1.75a3.75 3.75 0 00-3.4 5.3L1.75 12.4l1.85 1.85 5.35-5.35a3.75 3.75 0 005.3-3.4l-2 2-1.9-.4-.4-1.9z"/></symbol>
     <symbol id="i-chev" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M4.5 6.5L8 10l3.5-3.5"/></symbol>
     <symbol id="i-x" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M4 4l8 8M12 4l-8 8"/></symbol>
     <symbol id="i-ms" viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z"/></symbol>
@@ -62,7 +61,6 @@
       <button class="nav-item" id="btn-add"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="addPack">Agregar modpack</span></button>
 
       <div class="side-bottom">
-        <button class="nav-item hidden" id="btn-admin"><svg class="ic" aria-hidden="true"><use href="#i-wrench"/></svg><span data-i18n="admin">Administrar</span></button>
         <button class="nav-item" id="btn-settings"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span data-i18n="settings">Ajustes</span></button>
       </div>
     </aside>
@@ -116,37 +114,6 @@
         </div>
       </div>
 
-      <!-- Panel de administración: ocupa el lienzo mientras está abierto -->
-      <section class="admin hidden" id="admin">
-        <div class="title-row">
-          <div class="title-text"><h1 data-i18n="adminTitle">Administrar modpack</h1><p class="subline" id="admin-repo"></p></div>
-          <div class="title-actions">
-            <button class="btn" id="admin-refresh" data-i18n="adminRefresh">Actualizar</button>
-            <button class="btn" id="admin-close" data-i18n="close">Cerrar</button>
-          </div>
-        </div>
-        <p class="admin-sync" id="admin-sync"></p>
-        <div class="admin-body">
-          <div class="admin-mods">
-            <div class="count-cards" id="admin-filters" role="tablist"></div>
-            <div class="admin-mods-head">
-              <h2><span data-i18n="adminMods">Mods</span> <small id="admin-count"></small></h2>
-              <span class="spacer"></span>
-              <button class="btn" id="admin-folder" data-i18n="adminFolder">Abrir carpeta</button>
-              <button class="btn" id="admin-add" data-i18n="adminAdd">Agregar mods</button>
-            </div>
-            <div class="drop" id="admin-drop"><ul id="admin-list"></ul><p class="drop-hint" data-i18n="adminDrop">Arrastra archivos .jar aquí</p></div>
-          </div>
-          <form class="admin-form panel" id="admin-form">
-            <label><span data-i18n="adminVersion">Versión</span><input type="text" id="admin-version" spellcheck="false"></label>
-            <label><span data-i18n="adminServer">IP del servidor</span><input type="text" id="admin-server" spellcheck="false" data-i18n-ph="adminServerPh"></label>
-            <label><span data-i18n="adminNotes">Notas para los jugadores</span><textarea id="admin-notes" rows="4" data-i18n-ph="adminNotesPh"></textarea></label>
-            <div class="admin-changes" id="admin-changes"></div>
-            <button class="play" type="submit" id="admin-publish" data-i18n="adminPublish">Publicar</button>
-            <p class="admin-step" id="admin-step" role="status"></p>
-          </form>
-        </div>
-      </section>
     </main>
   </section>
 

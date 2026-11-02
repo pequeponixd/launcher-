@@ -16,7 +16,6 @@ const { gpuEnv, withEnv } = require('./gpu');
 const { snapshotMods, diffMods, isEmpty } = require('./changes');
 const { pingServer } = require('./serverping');
 const { DiscordPresence, playingActivity } = require('./discord');
-const { ModpackAdmin, nextVersion } = require('./admin');
 const { pathToFileURL } = require('url');
 let autoUpdater = null;
 try {
@@ -499,7 +498,6 @@ ipcMain.handle('state:get', async () => {
     selectedAccount: s.selectedAccount || null,
     settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch, discord: s.discord !== false },
     discordAvailable: !!config.discordClientId,
-    adminRepo: s.adminRepo || null,
   };
 });
 
@@ -521,14 +519,13 @@ ipcMain.handle('packs:add', async (_e, input) => {
   }
 });
 
-ipcMain.handle('packs:remove', async (_e, id, deleteFiles) => {
+ipcMain.handle('packs:remove', async (_e, id) => {
   const s = await loadSettings();
   const gone = s.packs.find((p) => p.id === id);
   if (gone && gone.fromDefault) (s.removedDefaults ||= []).push(gone.fromDefault);
   s.packs = s.packs.filter((p) => p.id !== id);
   if (s.selectedPack === id) s.selectedPack = s.packs[0] ? s.packs[0].id : null;
   await saveSettings();
-  if (deleteFiles) await fsp.rm(path.join(INSTANCES, id), { recursive: true, force: true });
   await fsp.rm(path.join(CUSTOM, id), { recursive: true, force: true });
   return { packs: s.packs.map(publicPack), selectedPack: s.selectedPack };
 });
@@ -699,67 +696,6 @@ ipcMain.handle('settings:set', async (_e, patch) => {
   const s = await saveSettings(next);
   return { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
 });
-
-/* ---------------------------------------------------- Administrar el modpack */
-
-// Solo funciona en el PC de quien tiene permiso de escritura en el repo (usa su git/gh ya configurado)
-async function adminFor() {
-  const s = await loadSettings();
-  if (!s.adminRepo) throw new Error('Elige primero la carpeta del modpack en Ajustes.');
-  return ModpackAdmin.locate(s.adminRepo);
-}
-const adminCall = (fn) => async (...args) => {
-  try {
-    return { ok: true, ...(await fn(...args)) };
-  } catch (e) {
-    logLine('admin ERROR: ' + errText(e));
-    return { ok: false, error: errText(e) };
-  }
-};
-async function adminStatus(admin, pull = true) {
-  const st = await admin.status({ pull });
-  return { ...st, suggestedVersion: nextVersion(st.pack.version) };
-}
-
-ipcMain.handle('admin:choose', adminCall(async () => {
-  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Carpeta del repo del modpack' });
-  if (r.canceled || !r.filePaths[0]) return { canceled: true };
-  const admin = await ModpackAdmin.locate(r.filePaths[0]);
-  await saveSettings({ adminRepo: admin.repo });
-  return { adminRepo: admin.repo, status: await adminStatus(admin) };
-}));
-ipcMain.handle('admin:forget', adminCall(async () => {
-  await saveSettings({ adminRepo: null });
-  return {};
-}));
-ipcMain.handle('admin:status', adminCall(async (_e, pull = true) => ({ status: await adminStatus(await adminFor(), pull) })));
-ipcMain.handle('admin:addMods', adminCall(async (_e, paths) => {
-  const admin = await adminFor();
-  if (!paths || !paths.length) {
-    const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mods', extensions: ['jar'] }] });
-    if (r.canceled) return { status: await adminStatus(admin, false) };
-    paths = r.filePaths;
-  }
-  const added = await admin.addMods(paths);
-  return { added, status: await adminStatus(admin, false) };
-}));
-ipcMain.handle('admin:removeMod', adminCall(async (_e, name) => {
-  const admin = await adminFor();
-  await admin.removeMod(name);
-  return { status: await adminStatus(admin, false) };
-}));
-ipcMain.handle('admin:openFolder', adminCall(async () => {
-  const admin = await adminFor();
-  shell.openPath(admin.modsDir());
-  return {};
-}));
-ipcMain.handle('admin:publish', adminCall(async (_e, form) => {
-  const admin = await adminFor();
-  const r = await admin.publish(form, (key, params = {}) => send('admin-step', { key, params }));
-  // el modpack recién publicado se vuelve a leer, para que el launcher muestre la versión nueva
-  const packs = (await refreshPacks()).map(publicPack);
-  return { result: r, packs, status: await adminStatus(admin, false) };
-}));
 
 ipcMain.handle('server:status', async (_e, packId) => {
   const s = await loadSettings();
