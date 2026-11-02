@@ -57,7 +57,7 @@ const asset = (file) => `[source:local]/config/fancymenu/assets/${file}`;
  * Botón propio que ejecuta una acción de FancyMenu (joinserver, opengui, quitgame…).
  * tex: [normal, hover] texturas en config/fancymenu/assets, o null para el botón de Minecraft.
  */
-function customButton(name, label, action, value, pos, tex = null) {
+function customButton(name, label, action, value, pos, tex = null, fx = {}) {
   const blockId = fmId(name + ':block');
   const actionId = fmId(name + ':action');
   return block('element', [
@@ -65,8 +65,12 @@ function customButton(name, label, action, value, pos, tex = null) {
     `[executable_action_instance:${actionId}][action_type:${action}] = ${value}`,
     `[executable_block:${blockId}][type:generic] = [executables:${actionId};]`,
     ...(tex ? [`backgroundnormal = ${asset(tex[0])}`, `backgroundhovered = ${asset(tex[1])}`] : []),
+    ...(fx.hoverSound ? [`hoversound = ${asset(fx.hoverSound)}`] : []),
+    ...(fx.clickSound ? [`clicksound = ${asset(fx.clickSound)}`] : []),
     ...buttonCommon,
     `label = ${label}`,
+    // resalte al pasar el mouse: el texto queda entre flechas
+    `hoverlabel = » ${label} «`,
     'element_type = custom_button',
     ...placement(name, pos),
   ]);
@@ -108,7 +112,7 @@ function image(name, file, pos) {
  * Texto del layout. server: "ip:puerto" o vacío (entonces el botón abre la lista de servidores).
  * logoSize: [ancho, alto] del logo.png para mantener su proporción.
  */
-function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', background = true, logoSize = null, buttons = {} } = {}) {
+function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', background = true, logoSize = null, buttons = {}, fx = {} } = {}) {
   const req = fmId('layout:req');
   const out = [
     'type = fancymenu_layout\n',
@@ -127,7 +131,7 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
   if (background) {
     out.push(
       block('menu_background', [
-        `image_path = ${asset('background.png')}`,
+        `image_path = ${asset(typeof background === 'string' ? background : 'background.png')}`,
         'slide = false',
         'repeat_texture = false',
         'background_type = image',
@@ -143,10 +147,10 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
   const srv = String(server || '').trim();
   out.push(
     srv
-      ? customButton('play', label, 'joinserver', srv, { x: -100, y: -40, width: 200, height: 24 }, buttons.play)
-      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -40, width: 200, height: 24 }, buttons.play),
-    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: -100, y: -10, width: 98, height: 20 }, buttons.small),
-    customButton('quit', 'Salir', 'quitgame', '', { x: 2, y: -10, width: 98, height: 20 }, buttons.small)
+      ? customButton('play', label, 'joinserver', srv, { x: -100, y: -40, width: 200, height: 24 }, buttons.play, fx)
+      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -40, width: 200, height: 24 }, buttons.play, fx),
+    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: -100, y: -10, width: 98, height: 20 }, buttons.small, fx),
+    customButton('quit', 'Salir', 'quitgame', '', { x: 2, y: -10, width: 98, height: 20 }, buttons.small, fx)
   );
   for (const b of ['singleplayer', 'multiplayer', 'realms', 'options', 'quit', 'language', 'accessibility']) {
     out.push(hiddenVanillaButton(`mc_titlescreen_${b}_button`));
@@ -190,7 +194,11 @@ function installMenu(packDir, { server = '', label } = {}) {
   // texturas de botones opcionales (las genera tools/make-art.py) ya dentro de assets/
   const pair = (a, b) => (fs.existsSync(path.join(assets, a)) && fs.existsSync(path.join(assets, b)) ? [a, b] : null);
   const buttons = { play: pair('btn-play.png', 'btn-play-hover.png'), small: pair('btn.png', 'btn-hover.png') };
-  const text = buildTitleLayout({ server, label, background: hasBg, logoSize: hasLogo ? pngSize(path.join(packDir, 'logo.png')) : null, buttons });
+  const has = (f) => (fs.existsSync(path.join(assets, f)) ? f : undefined);
+  const fx = { hoverSound: has('hover.wav'), clickSound: has('click.wav') };
+  // fondo animado (APNG) si existe; si no, la imagen fija
+  const background = has('background.apng') || (hasBg && 'background.png');
+  const text = buildTitleLayout({ server, label, background, logoSize: hasLogo ? pngSize(path.join(packDir, 'logo.png')) : null, buttons, fx });
   const file = path.join(custom, LAYOUT_FILE);
   if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== text) {
     fs.writeFileSync(file, text);

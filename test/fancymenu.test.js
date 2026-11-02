@@ -37,6 +37,14 @@ test('los botones usan las texturas si existen', () => {
   assert.match(t, /backgroundnormal = \[source:local\]\/config\/fancymenu\/assets\/btn-play\.png/);
   assert.match(t, /backgroundhovered = \[source:local\]\/config\/fancymenu\/assets\/btn-hover\.png/);
   assert.doesNotMatch(buildTitleLayout({}), /backgroundnormal/);
+  assert.match(t, /hoverlabel = » Jugar en Cachusafio «/);
+});
+
+test('fondo animado y sonidos de los botones', () => {
+  const t = buildTitleLayout({ background: 'background.apng', fx: { hoverSound: 'hover.wav', clickSound: 'click.wav' } });
+  assert.match(t, /image_path = \[source:local\]\/config\/fancymenu\/assets\/background\.apng/);
+  assert.match(t, /hoversound = \[source:local\]\/config\/fancymenu\/assets\/hover\.wav/);
+  assert.match(t, /clicksound = \[source:local\]\/config\/fancymenu\/assets\/click\.wav/);
 });
 
 test('installMenu copia imágenes, escribe el layout y activa el menú principal', () => {
