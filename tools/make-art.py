@@ -455,7 +455,7 @@ def lake_frame(t=0.0):
             px[x + dx, y + dy] = mix(px[x + dx, y + dy], c, 1.0 if (dx, dy) == (0, 0) else 0.6 * tw)
 
     # luna llena con cráteres
-    mx, my, mr = 186, 26, 12
+    mx, my, mr = 214, 24, 12  # a la derecha del logo para que no lo tape
     for y in range(my - mr - 1, my + mr + 2):
         for x in range(mx - mr - 1, mx + mr + 2):
             d = math.hypot(x - mx, y - my)
@@ -463,7 +463,7 @@ def lake_frame(t=0.0):
                 px[x, y] = jitter(mix((236, 236, 214), (196, 198, 184), max(0, (x - mx + y - my) / (2 * mr))), rnd, 3)
             elif d <= mr + 3:
                 px[x, y] = mix(px[x, y], (120, 140, 170), 0.25)
-    for cx, cy, cr in ((182, 22, 3), (191, 30, 2), (184, 32, 1.5), (192, 21, 1.5)):
+    for cx, cy, cr in ((mx - 4, my - 4, 3), (mx + 5, my + 4, 2), (mx - 2, my + 6, 1.5), (mx + 6, my - 5, 1.5)):
         for y in range(int(cy - cr), int(cy + cr) + 1):
             for x in range(int(cx - cr), int(cx + cr) + 1):
                 if math.hypot(x - cx, y - cy) <= cr:
@@ -587,8 +587,9 @@ def background():
     return upscale(lake_frame(0.0), 8)
 
 
-def background_animated(path, frames=36, ms=110, scale=4):
+def background_animated(path, frames=None, ms=None, scale=4):
     """Guarda la escena animada como APNG (FancyMenu la reproduce en loop)."""
+    frames, ms = frames or BG_FRAMES, ms or BG_MS
     imgs = [upscale(lake_frame(i / frames), scale) for i in range(frames)]
     imgs[0].save(path, format='PNG', save_all=True, append_images=imgs[1:], duration=ms, loop=0, optimize=True)
     return path
@@ -639,50 +640,68 @@ def draw_title(px, W, H, ox, oy, k, drops, shine=None, title='CACHUSAFIO'):
         x0 += w + 2
 
 
-def intro_frames(frames=52):
-    """Escena nocturna que aparece desde negro, las letras caen una por una y rebotan, destello y subtítulo."""
-    W, H = 240, 135
-    # k=2: el logo (136 px) cabe aunque la ventana sea 4:3 y Minecraft recorte los costados
-    k = 2
+# El logo termina en la intro donde lo pone el menú (fancymenu-layout.js usa los mismos números):
+# 136×22 px de una escena de 240×135, centrado y a 18 px del borde de arriba.
+INTRO_LOGO = {'scene_w': 240, 'scene_h': 135, 'w': 136, 'h': 22, 'top': 18}
+BG_FRAMES, BG_MS = 36, 110  # fondo animado del menú
+INTRO_FRAMES, INTRO_MS = 52, 70
+
+
+def intro_frames(frames=INTRO_FRAMES):
+    """Escena que aparece desde negro, las letras del logo caen una por una, destello, subtítulo, y termina
+    en el mismo cuadro con que empieza el menú (mismo logo, mismo lugar, mismo momento del fondo)."""
+    W, H = INTRO_LOGO['scene_w'], INTRO_LOGO['scene_h']
+    small = logo().resize((INTRO_LOGO['w'], INTRO_LOGO['h']), Image.NEAREST)  # los píxeles exactos de logo.png
+    k = INTRO_LOGO['w'] // 68  # 2 px por celda (el logo tiene 68 celdas de ancho)
     title = 'CACHUSAFIO'
-    tw = sum(len(FONT[c][0]) + 2 for c in title) - 2
-    ox, oy = (W - tw * k) // 2, 40
+    # columnas de cada letra (en celdas, con su contorno), igual que las dibuja logo()
+    spans, x0 = [], 1
+    for ch in title:
+        w = len(FONT[ch][0])
+        spans.append((x0 - 1, x0 + w + 1))
+        x0 += w + 2
+    ox, oy = (W - INTRO_LOGO['w']) // 2, INTRO_LOGO['top']
     sub, sw, _ = text_mask('EL DESAFÍO DE LAS KILAS')
+    loop = BG_FRAMES * BG_MS
     out = []
     for f in range(frames):
-        img = lake_frame((f / frames) % 1).convert('RGB')
+        # el fondo avanza al mismo ritmo que el del menú y el último cuadro cae justo en su cuadro 0
+        t = (((f - (frames - 1)) * INTRO_MS) / loop) % 1
+        img = lake_frame(t).convert('RGB')
         px = img.load()
-        # oscurece la escena para que el logo resalte; al principio todo sale de negro
         fade_in = min(1.0, f / 8)
+        dim = 0.35 * (1 - max(0.0, (f - 42) / (frames - 1 - 42)))  # al final se aclara hasta quedar como el menú
         for y in range(H):
             for x in range(W):
-                px[x, y] = mix((0, 0, 0), mix(px[x, y], (4, 6, 14), 0.35), fade_in)
-        drops = []
-        for i in range(len(title)):
-            start = 6 + i * 2
-            t = (f - start) / 6
-            if t < 0:
-                drops.append(None)
-            elif t < 1:
-                drops.append(-70 * (1 - t) ** 2)  # cae acelerando
-            elif t < 1.5:
-                drops.append(-3 * math.sin((t - 1) * 2 * math.pi))  # pequeño rebote
-            else:
-                drops.append(0)
-        shine = (f - 34) * 4 - 10 if 34 <= f <= 44 else None
-        draw_title(px, W, H, ox, oy, k, drops, shine)
-        if f >= 38:  # subtítulo
-            a = min(1.0, (f - 38) / 6)
-            sx, sy = (W - sw) // 2, oy + 10 * k + 6
+                px[x, y] = mix((0, 0, 0), mix(px[x, y], (4, 6, 14), dim), fade_in)
+        for i, (c0, c1) in enumerate(spans):
+            tt = (f - (6 + i * 2)) / 6
+            if tt < 0:
+                continue
+            dy = -70 * (1 - tt) ** 2 if tt < 1 else -3 * math.sin((tt - 1) * 2 * math.pi) if tt < 1.5 else 0
+            shine = (f - 30) * 4 - 6 if 30 <= f <= 40 else None
+            for yy in range(INTRO_LOGO['h']):
+                for xx in range(c0 * k, c1 * k):
+                    r, g, b, a = small.getpixel((xx, yy))
+                    if a == 0:
+                        continue
+                    c = (r, g, b)
+                    if shine is not None and (r, g, b) != INK and abs(xx // k + yy // k - shine) <= 1:
+                        c = mix(c, WHITE, 0.7)
+                    X, Y = ox + xx, oy + int(dy) + yy
+                    if 0 <= Y < H:
+                        px[X, Y] = c
+        # subtítulo: aparece y se va antes del final (el menú no lo tiene)
+        a = min(1.0, (f - 34) / 5) if f < 44 else max(0.0, 1 - (f - 44) / 5)
+        if f >= 34 and a > 0:
+            sx, sy = (W - sw) // 2, oy + INTRO_LOGO['h'] + 6
             for cx, cy in sub:
-                X, Y = sx + cx, sy + cy
-                if 0 <= X < W and 0 <= Y < H:
-                    px[X, Y] = mix(px[X, Y], WHITE, a)
+                px[sx + cx, sy + cy] = mix(px[sx + cx, sy + cy], WHITE, a)
         out.append(img)
     return out
 
 
-def intro_animated(path, scale=4, ms=70):
+def intro_animated(path, scale=4, ms=INTRO_MS):
     imgs = [upscale(f, scale) for f in intro_frames()]
     # loop=1: se reproduce una sola vez (FancyMenu pasa al menú al terminar)
     imgs[0].save(path, format='PNG', save_all=True, append_images=imgs[1:], duration=ms, loop=1, optimize=True)

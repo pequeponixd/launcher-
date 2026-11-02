@@ -66,6 +66,7 @@ function customButton(name, label, action, value, pos, tex = null, fx = {}) {
     `[executable_block:${blockId}][type:generic] = [executables:${actionId};]`,
     ...(tex ? [`backgroundnormal = ${asset(tex[0])}`, `backgroundhovered = ${asset(tex[1])}`] : []),
     ...(fx.hoverSound ? [`hoversound = ${asset(fx.hoverSound)}`] : []),
+    ...(fx.tooltip ? [`description = ${fx.tooltip}`] : []),
     ...(fx.clickSound ? [`clicksound = ${asset(fx.clickSound)}`] : []),
     ...buttonCommon,
     `label = ${label}`,
@@ -96,6 +97,70 @@ function hiddenVanillaButton(id) {
 const hiddenDeep = (type) =>
   block('deep_element', [`element_type = ${type}`, ...placement(`deep:${type}`, { anchor: 'vanilla' }), 'is_hidden = true']);
 
+// El logo del menú ocupa en pantalla lo mismo que al final de la intro (tools/make-art.py, INTRO_LOGO):
+// 136×22 de una escena 240×135 escalada al alto de la ventana, centrado y a 18 px de arriba.
+const INTRO_LOGO = { sceneH: 135, w: 136, h: 22, top: 18 };
+const calc = (expr) => `{"placeholder":"calc","values":{"expression":"${expr}","decimal":"false"}}`;
+const GW = '{"placeholder":"guiwidth"}';
+const GH = '{"placeholder":"guiheight"}';
+
+function fittedLogo(name) {
+  const L = INTRO_LOGO;
+  return block('element', [
+    `source = ${asset('logo.png')}`,
+    'repeat_texture = false',
+    'nine_slice_texture = false',
+    'nine_slice_texture_border_x = 5',
+    'nine_slice_texture_border_y = 5',
+    'element_type = image',
+    `advanced_width = ${calc(`${GH}*${L.w}/${L.sceneH}`)}`,
+    `advanced_height = ${calc(`${GH}*${L.h}/${L.sceneH}`)}`,
+    `advanced_posx = ${calc(`${GW}/2-${GH}*${L.w / 2}/${L.sceneH}`)}`,
+    `advanced_posy = ${calc(`${GH}*${L.top}/${L.sceneH}`)}`,
+    ...placement(name, { anchor: 'top-left', x: 0, y: 0, width: 220, height: 36 }),
+  ]);
+}
+
+/** Frase amarilla que rebota al lado del logo, como en Minecraft (sale al azar de splashes.txt). */
+function splash(name) {
+  const L = INTRO_LOGO;
+  return block('element', [
+    `source = ${asset('splashes.txt')}`,
+    'source_mode = text_file',
+    'scale = 1.0',
+    'shadow = true',
+    'rotation = -20.0',
+    'base_color = #FFFF00FF',
+    'refresh = false',
+    'bouncing = true',
+    'element_type = splash_text',
+    // esquina de abajo a la derecha del logo
+    `advanced_posx = ${calc(`${GW}/2+${GH}*${L.w / 2 - 50}/${L.sceneH}`)}`,
+    `advanced_posy = ${calc(`${GH}*${L.top + L.h - 2}/${L.sceneH}`)}`,
+    ...placement(name, { anchor: 'top-left', x: 0, y: 0, width: 100, height: 20 }),
+  ]);
+}
+
+/** Tu personaje con tu skin, que mira hacia el mouse. */
+function player(name, pos) {
+  return block('element', [
+    'copy_client_player = true',
+    'auto_skin = true',
+    'auto_cape = true',
+    'slim = false',
+    'parrot = false',
+    'parrot_left_shoulder = false',
+    'is_baby = false',
+    'body_movement = true',
+    'player_pose = standing',
+    'showname = true',
+    'head_follows_mouse = true',
+    'body_follows_mouse = true',
+    'element_type = player_entity_v2',
+    ...placement(name, pos),
+  ]);
+}
+
 function image(name, file, pos) {
   return block('element', [
     `source = ${asset(file)}`,
@@ -112,6 +177,21 @@ function image(name, file, pos) {
  * Texto del layout. server: "ip:puerto" o vacío (entonces el botón abre la lista de servidores).
  * logoSize: [ancho, alto] del logo.png para mantener su proporción.
  */
+const SPLASHES = [
+  '¡Ahora con ruleta!',
+  '¡Gira la ruleta!',
+  '¡No apagues la fogata!',
+  '¡Revive en la fogata!',
+  '¡Desafío aceptado!',
+  '¡Con aurora boreal!',
+  '¡100% pixel art!',
+  '¡Mods recién horneados!',
+  '¡No mires a la luna!',
+  '¡Cuidado con los cachos!',
+  '¡Kilas al poder!',
+  '¡La cabaña tiene la luz prendida!',
+];
+
 function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', background = true, logoSize = null, buttons = {}, fx = {} } = {}) {
   const req = fmId('layout:req');
   const out = [
@@ -139,18 +219,16 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
       block('customization', ['action = backgroundoptions', 'keepaspectratio = true'])
     );
   }
-  if (logoSize) {
-    const w = 220; // cabe en una ventana chica con escala de interfaz alta
-    const h = Math.round((w * logoSize[1]) / logoSize[0]);
-    out.push(image('logo', 'logo.png', { x: -w / 2, y: -40 - h - 16, width: w, height: h }));
-  }
+  if (logoSize) out.push(fittedLogo('logo'));
+  if (fx.splashes) out.push(splash('splash'));
+  if (fx.player) out.push(player('player', { anchor: 'mid-centered', x: -158, y: -52, width: 34, height: 80 }));
   const srv = String(server || '').trim();
   out.push(
     srv
-      ? customButton('play', label, 'joinserver', srv, { x: -100, y: -40, width: 200, height: 24 }, buttons.play, fx)
-      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -40, width: 200, height: 24 }, buttons.play, fx),
-    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: -100, y: -10, width: 98, height: 20 }, buttons.small, fx),
-    customButton('quit', 'Salir', 'quitgame', '', { x: 2, y: -10, width: 98, height: 20 }, buttons.small, fx)
+      ? customButton('play', label, 'joinserver', srv, { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: `Entra directo a ${srv}` })
+      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: 'Abre la lista de servidores' }),
+    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: -100, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Video, sonido, controles e idioma' }),
+    customButton('quit', 'Salir', 'quitgame', '', { x: 2, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Cierra el juego' })
   );
   for (const b of ['singleplayer', 'multiplayer', 'realms', 'options', 'quit', 'language', 'accessibility']) {
     out.push(hiddenVanillaButton(`mc_titlescreen_${b}_button`));
@@ -284,11 +362,17 @@ function installMenu(packDir, { server = '', label } = {}) {
   };
   const hasBg = copy('background.png');
   const hasLogo = copy('logo.png');
+  // frases amarillas del menú: se crean una vez y después se pueden editar a mano (una por línea)
+  const splashFile = path.join(assets, 'splashes.txt');
+  if (!fs.existsSync(splashFile)) {
+    fs.writeFileSync(splashFile, SPLASHES.join('\n') + '\n');
+    changed.push(splashFile);
+  }
   // texturas de botones opcionales (las genera tools/make-art.py) ya dentro de assets/
   const pair = (a, b) => (fs.existsSync(path.join(assets, a)) && fs.existsSync(path.join(assets, b)) ? [a, b] : null);
   const buttons = { play: pair('btn-play.png', 'btn-play-hover.png'), small: pair('btn.png', 'btn-hover.png') };
   const has = (f) => (fs.existsSync(path.join(assets, f)) ? f : undefined);
-  const fx = { hoverSound: has('hover.wav'), clickSound: has('click.wav') };
+  const fx = { hoverSound: has('hover.wav'), clickSound: has('click.wav'), splashes: has('splashes.txt'), player: true };
   // fondo animado (APNG) si existe; si no, la imagen fija
   const background = has('background.apng') || (hasBg && 'background.png');
   const logoSize = hasLogo ? pngSize(path.join(packDir, 'logo.png')) : null;

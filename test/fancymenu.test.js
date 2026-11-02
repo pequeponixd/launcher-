@@ -27,7 +27,8 @@ test('cada bloque de acciones apunta a una acción que existe y las llaves cierr
     for (const id of list.split(';').filter(Boolean)) assert.ok(t.includes(`[executable_action_instance:${id}]`), id);
   }
   assert.equal((t.match(/{/g) || []).length, (t.match(/}/g) || []).length);
-  assert.match(t, /width = 220\n  height = 36/);
+  assert.match(t, /advanced_width = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*136\/135"/);
+  assert.match(t, /advanced_posy = \{"placeholder":"calc".*\*18\/135/);
   assert.match(t, /instance_identifier = forge_titlescreen_mods_button/);
   assert.equal(buildTitleLayout({ server: 'x' }), buildTitleLayout({ server: 'x' })); // estable
 });
@@ -38,6 +39,14 @@ test('los botones usan las texturas si existen', () => {
   assert.match(t, /backgroundhovered = \[source:local\]\/config\/fancymenu\/assets\/btn-hover\.png/);
   assert.doesNotMatch(buildTitleLayout({}), /backgroundnormal/);
   assert.match(t, /hoverlabel = » Jugar en Cachusafio «/);
+});
+
+test('splash, personaje y tooltips', () => {
+  const t = buildTitleLayout({ fx: { splashes: 'splashes.txt', player: true } });
+  assert.match(t, /element_type = splash_text/);
+  assert.match(t, /source = \[source:local\]\/config\/fancymenu\/assets\/splashes\.txt/);
+  assert.match(t, /copy_client_player = true/);
+  assert.match(t, /description = Abre la lista de servidores/);
 });
 
 test('fondo animado y sonidos de los botones', () => {
