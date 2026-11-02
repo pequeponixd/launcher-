@@ -60,8 +60,18 @@ function motdText(d) {
   return (motdText(d.text) + (d.extra || []).map(motdText).join('')).trim();
 }
 
+// Algunos servidores usan la lista para mostrar texto ("§aBienvenido") con UUID en cero: eso no son jugadores
+const UUID = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+function playerSample(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((p) => p && typeof p.name === 'string' && UUID.test(p.id || '') && !/^0{8}-?0{4}/.test(p.id) && /^\w{1,16}$/.test(p.name))
+    .map((p) => ({ name: p.name, id: p.id }));
+}
+
 /**
- * Devuelve { online: true, players: {online, max}, version, motd, latency } o { online: false, error }.
+ * Devuelve { online: true, players: {online, max, sample}, version, motd, latency } o { online: false, error }.
+ * sample: [{ name, id }] de algunos conectados (el servidor puede ocultarla y venir vacía).
  * Nunca lanza: un servidor apagado es una respuesta normal.
  */
 async function pingServer(address, { timeoutMs = 5000 } = {}) {
@@ -106,7 +116,7 @@ async function pingServer(address, { timeoutMs = 5000 } = {}) {
         const data = JSON.parse(buf.subarray(off, off + strLen[0]).toString('utf8'));
         finish({
           online: true,
-          players: { online: data.players?.online ?? 0, max: data.players?.max ?? 0 },
+          players: { online: data.players?.online ?? 0, max: data.players?.max ?? 0, sample: playerSample(data.players?.sample) },
           version: data.version?.name || '',
           motd: motdText(data.description),
           latency: Date.now() - t0,
@@ -118,4 +128,4 @@ async function pingServer(address, { timeoutMs = 5000 } = {}) {
   });
 }
 
-module.exports = { pingServer, resolveAddress, varint, readVarint, motdText };
+module.exports = { pingServer, resolveAddress, varint, readVarint, motdText, playerSample };

@@ -151,6 +151,10 @@ html[lang=en] .pack.offline .n small::after { content: " · offline"; }
 .server::before { content: ""; width: 8px; height: 8px; background: #6b6b6b; }
 .server.on::before { background: #4cc35d; }
 .server.on { color: #c9efcf; }
+.heads { display: inline-flex; align-items: center; }
+.heads img { width: 22px; height: 22px; image-rendering: pixelated; border: 2px solid #151515; border-radius: 3px; margin-left: -4px; background: #2d2d2d; }
+.heads img:first-child { margin-left: 0; }
+.heads .more { font-size: 12px; color: #d6d6d6; margin-left: 6px; }
 
 /* Novedades: qué mods cambiaron y notas del autor */
 .news {
@@ -194,6 +198,45 @@ html[lang=en] .pack.offline .n small::after { content: " · offline"; }
 .play:active:not(:disabled) { box-shadow: inset 0 -1px 0 rgba(0,0,0,.25); transform: translateY(2px); }
 .play:disabled { background: #3a3a3a; color: #9a9a9a; cursor: default; box-shadow: none; }
 .play.running:disabled { background: var(--ok); color: #fff; }
+
+/* ---------------- panel de administración ---------------- */
+.admin { position: absolute; inset: 0; z-index: 5; background: var(--bg); display: flex; flex-direction: column; padding: 16px 24px 20px; gap: 10px; }
+.admin header { display: flex; align-items: center; gap: 8px; }
+.admin header b { display: block; font-size: 17px; }
+.admin header small { color: var(--muted); font-size: 12px; user-select: text; }
+.admin-sync { font-size: 13px; color: var(--muted); white-space: pre-wrap; user-select: text; }
+.admin-sync.ok { color: #8fd19a; }
+.admin-sync.bad { color: #ff8a7a; }
+.admin-body { flex: 1; min-height: 0; display: flex; gap: 20px; }
+.admin-mods { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.admin-mods-head { display: flex; align-items: center; gap: 8px; }
+.admin-mods-head small { color: var(--muted); }
+.admin-mods-head .btn { height: 32px; font-size: 13px; }
+.drop { flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); position: relative; }
+.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.drop ul { list-style: none; }
+.drop li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid #222; font-size: 13px; }
+.drop li .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+.drop li small { color: var(--muted); }
+.drop li .tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; }
+.drop li .tag.new { background: #24311f; color: #9fdc8c; }
+.drop li .tag.up { background: #1d2a36; color: #8cc4ef; }
+.drop li .tag.big { background: #3a2c14; color: #f0c36a; }
+.drop li .x { color: var(--muted); padding: 2px 6px; border-radius: 3px; }
+.drop li .x:hover { color: #ff8a7a; background: rgba(255,80,80,.12); }
+.drop-hint { text-align: center; color: var(--muted); font-size: 12px; padding: 14px; }
+.admin-form { width: 320px; flex: none; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.admin-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.admin-form input, .admin-form textarea { width: 100%; }
+.admin-form textarea { background: #0f0f0f; color: var(--text); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; font: inherit; resize: vertical; outline: none; user-select: text; }
+.admin-form textarea:focus { border-color: var(--accent); }
+.admin-changes { font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; }
+.admin-changes .none { color: var(--muted); }
+.admin-changes b { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.admin-form .play { width: 100%; }
+.admin-step { font-size: 13px; color: var(--muted); min-height: 18px; white-space: pre-wrap; user-select: text; }
+.admin-step.bad { color: #ff8a7a; }
+.admin-step.ok { color: #8fd19a; }
 
 /* ---------------- popup de cuentas ---------------- */
 .popup {

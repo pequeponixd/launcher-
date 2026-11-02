@@ -1,4 +1,4 @@
-# Cachusafio Launcher 3.1
+# Cachusafio Launcher 3.2
 
 Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo abren, inician sesión (cuenta Microsoft u offline) y le dan **Play**. No hay IP en el launcher: el botón para entrar al servidor lo pones tú en el menú principal con **FancyMenu**, dentro del modpack.
 
@@ -12,6 +12,22 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - **Novedades**: muestra qué mods se agregaron, actualizaron o quitaron desde la última vez que jugaste, más las notas que escribas en `changelog`.
 - **Estado del servidor**: con `server` en `pack.json` muestra si está prendido y cuántos jugadores hay.
 - Cada jugador puede cambiar el icono, fondo, logo y color de un modpack en **Ajustes → Personalizar** (solo en su PC).
+- **Quién está conectado**: muestra las caras de los jugadores al lado del estado del servidor.
+- **Discord**: tus amigos ven "Jugando Cachusafio" en tu perfil (ver abajo cómo activarlo).
+- **Menú del juego listo**: el launcher genera el menú principal de FancyMenu (fondo, logo, *Jugar en Cachusafio*, Opciones, Salir). Sin IP fija, el botón abre la lista de servidores; con IP, entra directo.
+
+## Panel de administrador (subir mods sin comandos)
+Solo para quien administra el modpack, en su PC:
+1. Clona el repo del modpack (`git clone https://github.com/USUARIO/modpack-…`) y asegúrate de poder hacer `git push` (por ejemplo con `gh auth login`). Para mods de más de 100 MB necesitas también `gh`.
+2. En el launcher: **Ajustes → Administrador → Elegir carpeta** y elige esa carpeta.
+3. Aparece **Administrar** en la barra lateral: arrastra los `.jar`, quita los que sobran con ✕, escribe la versión, la IP del servidor y las notas, y dale **Publicar para todos**.
+
+El launcher trae primero lo que haya en GitHub (para no pisar cambios), sube los mods grandes a un Release, actualiza `pack.json`, el menú de FancyMenu y el `manifest.json`, y hace commit + push con tu cuenta. No guarda contraseñas: en el PC de alguien sin permiso sobre el repo, publicar simplemente falla.
+
+## Discord Rich Presence
+1. Entra a <https://discord.com/developers/applications> → **New Application** → nómbrala "Cachusafio".
+2. Copia el **Application ID** y ponlo en `config.json` → `"discordClientId": "…"`.
+3. Publica una versión nueva del launcher. Cada jugador puede apagarlo en **Ajustes → Mostrar en Discord**.
 - Si Minecraft se cierra con error, muestra las últimas líneas del log para copiarlas y pedir ayuda.
 - Botón para forzar el cierre del juego y opción para ocultar el launcher mientras juegas.
 - La sesión de Microsoft se guarda cifrada con el llavero del sistema.

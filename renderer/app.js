@@ -33,6 +33,7 @@ const T = {
     settings: 'Ajustes', ram: 'Memoria RAM', ramWarn: 'Tu PC tiene {total} GB: deja al menos 2–3 GB para el sistema.',
     gpu: 'Usar gráfica NVIDIA', gpuHint: 'Solo Linux con gráfica Intel/AMD + NVIDIA. Actívalo si en el juego (F3) aparece Intel o Mesa.',
     openFolder: 'Abrir carpeta del modpack', openLog: 'Ver último log',
+    discord: 'Mostrar en Discord', discordHint: 'Tus amigos ven "Jugando Cachusafio" en tu perfil.',
     hideOnLaunch: 'Ocultar el launcher mientras juegas', hideOnLaunchHint: 'Vuelve a aparecer al cerrar Minecraft.',
     secGame: 'Juego', secLauncher: 'Launcher', secPack: 'Este modpack',
     removePack: 'Quitar modpack', removeSure: '¿Quitar "{name}"? También puedes borrar sus archivos del disco.',
@@ -55,6 +56,18 @@ const T = {
     updDownloading: 'Descargando actualización del launcher… {p}%', updReady: 'Reiniciar para actualizar a {v}',
     secCustom: 'Personalizar (solo en este PC)', icon: 'Icono', background: 'Fondo', logo: 'Logo', color: 'Color',
     change: 'Cambiar', reset: 'Restaurar', before: 'antes',
+    admin: 'Administrar', adminTitle: 'Administrar modpack', adminRefresh: 'Actualizar', adminMods: 'Mods',
+    adminFolder: 'Abrir carpeta', adminAdd: 'Agregar mods', adminDrop: 'Arrastra archivos .jar aquí',
+    adminVersion: 'Versión', adminServer: 'IP del servidor', adminServerPh: 'Vacío: el botón abre la lista de servidores',
+    adminNotes: 'Notas para los jugadores', adminNotesPh: 'Una línea por novedad', adminPublish: 'Publicar para todos',
+    adminSyncOk: 'Al día con GitHub', adminSyncBad: 'No se pudieron traer los cambios de GitHub:', adminLoading: 'Revisando…',
+    adminNoChanges: 'Sin cambios en los mods desde la última publicación.', adminBig: '>95 MB: va a un Release',
+    adminNew: 'nuevo', adminUpdated: 'actualizado', adminRemoveSure: '¿Quitar {name}?',
+    'admin.pull': 'Trayendo cambios de GitHub…', 'admin.big': 'Revisando archivos grandes…', 'admin.upload': 'Subiendo {file} al Release…',
+    'admin.menu': 'Actualizando el menú del juego…', 'admin.manifest': 'Generando manifest…', 'admin.commit': 'Guardando cambios…',
+    'admin.push': 'Subiendo a GitHub…', adminDone: 'Publicado: {title}. Les llegará a todos al darle Jugar.',
+    secAdmin: 'Administrador', adminHint: 'Elige la carpeta donde clonaste el repo del modpack. Solo funciona si tu git tiene permiso para subir a ese repo.',
+    adminChoose: 'Elegir carpeta', adminForget: 'Dejar de administrar',
   },
   en: {
     'login.title': 'Sign in',
@@ -86,6 +99,7 @@ const T = {
     settings: 'Settings', ram: 'RAM', ramWarn: 'Your PC has {total} GB: leave at least 2–3 GB for the system.',
     gpu: 'Use NVIDIA GPU', gpuHint: 'Linux only, with Intel/AMD + NVIDIA graphics. Turn it on if the game (F3) shows Intel or Mesa.',
     openFolder: 'Open modpack folder', openLog: 'View last log',
+    discord: 'Show on Discord', discordHint: 'Your friends see "Playing Cachusafio" on your profile.',
     hideOnLaunch: 'Hide the launcher while playing', hideOnLaunchHint: 'It comes back when Minecraft closes.',
     secGame: 'Game', secLauncher: 'Launcher', secPack: 'This modpack',
     removePack: 'Remove modpack', removeSure: 'Remove "{name}"? You can also delete its files from disk.',
@@ -108,6 +122,18 @@ const T = {
     updDownloading: 'Downloading launcher update… {p}%', updReady: 'Restart to update to {v}',
     secCustom: 'Customize (this PC only)', icon: 'Icon', background: 'Background', logo: 'Logo', color: 'Color',
     change: 'Change', reset: 'Reset', before: 'was',
+    admin: 'Manage', adminTitle: 'Manage modpack', adminRefresh: 'Refresh', adminMods: 'Mods',
+    adminFolder: 'Open folder', adminAdd: 'Add mods', adminDrop: 'Drop .jar files here',
+    adminVersion: 'Version', adminServer: 'Server address', adminServerPh: 'Empty: the button opens the server list',
+    adminNotes: 'Notes for players', adminNotesPh: 'One line per change', adminPublish: 'Publish for everyone',
+    adminSyncOk: 'Up to date with GitHub', adminSyncBad: 'Could not fetch changes from GitHub:', adminLoading: 'Checking…',
+    adminNoChanges: 'No mod changes since the last publish.', adminBig: '>95 MB: goes to a Release',
+    adminNew: 'new', adminUpdated: 'updated', adminRemoveSure: 'Remove {name}?',
+    'admin.pull': 'Fetching changes from GitHub…', 'admin.big': 'Checking large files…', 'admin.upload': 'Uploading {file} to the Release…',
+    'admin.menu': 'Updating the in-game menu…', 'admin.manifest': 'Building manifest…', 'admin.commit': 'Saving changes…',
+    'admin.push': 'Pushing to GitHub…', adminDone: 'Published: {title}. Everyone gets it when they press Play.',
+    secAdmin: 'Admin', adminHint: 'Pick the folder where you cloned the modpack repo. It only works if your git can push to that repo.',
+    adminChoose: 'Choose folder', adminForget: 'Stop managing',
   },
 };
 
@@ -199,6 +225,7 @@ function renderRail() {
   av.src = a ? head(a) : STEVE;
   $('acc-name').textContent = a ? a.name : '';
   $('acc-type').textContent = a ? (a.type === 'microsoft' ? t('microsoft') : t('offline')) : '';
+  $('btn-admin').classList.toggle('hidden', !S.adminRepo);
 }
 
 // Texto claro u oscuro sobre el color del modpack, según lo claro que sea ese color
@@ -279,7 +306,10 @@ async function refreshServer() {
   const p = curPack();
   lastServerPack = p ? p.id : null;
   const el = $('server');
-  if (!p?.server) return el.classList.add('hidden');
+  if (!p?.server) {
+    $('heads').classList.add('hidden');
+    return el.classList.add('hidden');
+  }
   if (el.dataset.pack !== p.id) {
     el.dataset.pack = p.id;
     el.className = 'server';
@@ -290,6 +320,26 @@ async function refreshServer() {
   el.classList.toggle('on', !!r?.online);
   el.textContent = r?.online ? t('serverOn', r.players) : t('serverOff');
   el.title = r?.online ? [r.motd, r.version, r.latency + ' ms'].filter(Boolean).join('\n') : '';
+  renderHeads(r?.online ? r.players : null);
+}
+
+// Caras de quienes están conectados (el servidor manda una muestra de hasta ~12)
+function renderHeads(players) {
+  const box = $('heads');
+  const list = players?.sample || [];
+  box.classList.toggle('hidden', !list.length);
+  box.innerHTML = '';
+  const MAX = 8;
+  for (const pl of list.slice(0, MAX)) {
+    const im = document.createElement('img');
+    im.alt = pl.name;
+    im.title = pl.name;
+    im.src = head({ type: 'microsoft', uuid: pl.id }, 32);
+    im.onerror = () => { im.onerror = null; im.src = STEVE; };
+    box.appendChild(im);
+  }
+  const more = Math.max(players?.online || 0, list.length) - Math.min(list.length, MAX);
+  if (list.length && more > 0) box.insertAdjacentHTML('beforeend', `<span class="more">+${more}</span>`);
 }
 setInterval(() => S?.accounts.length && !document.hidden && refreshServer(), 60000);
 
@@ -505,7 +555,13 @@ $('btn-settings').onclick = async () => {
     <input type="range" id="ram" min="2" max="${max}" step="1" value="${Math.min(S.settings.ramGb, max)}">
     <p class="hint warn" id="ram-warn" style="font-size:12px;min-height:16px">${ramWarn(S.settings.ramGb)}</p>
     ${S.platform === 'linux' ? `<div class="row"><span>${t('gpu')}<small class="hint">${t('gpuHint')}</small></span>${toggle('gpu-on')}</div>` : ''}
+    ${S.discordAvailable ? `<div class="row"><span>${t('discord')}<small class="hint">${t('discordHint')}</small></span>${toggle('discord-on')}</div>` : ''}
     <div class="row"><span>${t('hideOnLaunch')}<small class="hint">${t('hideOnLaunchHint')}</small></span>${toggle('hide-on')}</div>
+    <h4>${t('secAdmin')}</h4>
+    <p class="sub" style="margin:0 0 6px">${t('adminHint')}</p>
+    <div class="row"><small class="hint" style="user-select:text;word-break:break-all">${S.adminRepo ? esc(S.adminRepo) : ''}</small>
+      <span class="btns" style="display:flex;gap:6px">${S.adminRepo ? `<button class="btn" id="d-admin-forget">${t('adminForget')}</button>` : ''}<button class="btn" id="d-admin">${t('adminChoose')}</button></span></div>
+    <p class="err" id="d-admin-err"></p>
     <h4>${t('secLauncher')}</h4>
     <div class="row"><span>${t('lang')}</span><select id="d-lang"><option value="es">Español</option><option value="en">English</option></select></div>
     <div class="row"><span>${t('sound')}</span>${toggle('sfx-on')}</div>
@@ -533,10 +589,32 @@ $('btn-settings').onclick = async () => {
     $('gpu-on').checked = !!S.settings.nvidiaGpu;
     $('gpu-on').onchange = async (e) => { S.settings.nvidiaGpu = e.target.checked; await api.setSettings({ nvidiaGpu: e.target.checked }); };
   }
+  if ($('discord-on')) {
+    $('discord-on').checked = S.settings.discord !== false;
+    $('discord-on').onchange = async (e) => { S.settings.discord = e.target.checked; await api.setSettings({ discord: e.target.checked }); };
+  }
   $('hide-on').checked = !!S.settings.hideOnLaunch;
   $('hide-on').onchange = async (e) => { S.settings.hideOnLaunch = e.target.checked; await api.setSettings({ hideOnLaunch: e.target.checked }); };
   $('d-lang').onchange = (e) => { setLang(e.target.value); $('btn-settings').click(); };
   $('d-ok').onclick = closeDialog;
+  $('d-admin').onclick = async () => {
+    const r = await api.adminChoose();
+    if (r.canceled) return;
+    if (!r.ok) return ($('d-admin-err').textContent = r.error);
+    S.adminRepo = r.adminRepo;
+    renderRail();
+    closeDialog();
+    openAdmin(r.status);
+  };
+  if ($('d-admin-forget')) {
+    $('d-admin-forget').onclick = async () => {
+      await api.adminForget();
+      S.adminRepo = null;
+      renderRail();
+      closeAdmin();
+      $('btn-settings').click();
+    };
+  }
   if (p) {
     // tras cada cambio se actualiza todo y se vuelve a abrir Ajustes para que se vea el estado nuevo
     const custom = async (kind, value) => {
@@ -584,6 +662,125 @@ function showUpdate({ state, version, percent }) {
   }
 }
 api.onUpdater(showUpdate);
+
+/* ------------------------------------------------------------ administrar el modpack */
+let adminSt = null;
+let publishing = false;
+
+const fmtMb = (b) => (b / 1048576 >= 10 ? (b / 1048576).toFixed(0) : (b / 1048576).toFixed(1)) + ' MB';
+
+function renderAdmin(st, { keepForm = false } = {}) {
+  adminSt = st;
+  $('admin-repo').textContent = st.repo;
+  const sync = $('admin-sync');
+  sync.className = 'admin-sync ' + (st.syncError ? 'bad' : 'ok');
+  sync.textContent = st.syncError ? `${t('adminSyncBad')}\n${st.syncError}` : t('adminSyncOk');
+
+  // marca qué mods son nuevos o actualizados respecto a lo publicado
+  const base = (n) => n.replace(/\.jar$/i, '');
+  const added = new Set(st.changes.added);
+  const updated = new Set(st.changes.updated.map((u) => u.to));
+  $('admin-count').textContent = `(${st.mods.length})`;
+  $('admin-list').innerHTML = st.mods
+    .map((m) => {
+      const tag = added.has(base(m.name)) ? `<span class="tag new">${t('adminNew')}</span>` : updated.has(base(m.name)) ? `<span class="tag up">${t('adminUpdated')}</span>` : '';
+      return `<li><span class="n">${esc(m.name)}</span>${tag}${m.big ? `<span class="tag big">${t('adminBig')}</span>` : ''}<small>${fmtMb(m.size)}</small><button class="x" data-rm="${esc(m.name)}" title="${t('removePack')}">✕</button></li>`;
+    })
+    .join('');
+  $('admin-list').querySelectorAll('[data-rm]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm(t('adminRemoveSure', { name: b.dataset.rm }))) return;
+      const r = await api.adminRemoveMod(b.dataset.rm);
+      r.ok ? renderAdmin(r.status, { keepForm: true }) : adminError(r.error);
+    };
+  });
+
+  const c = st.changes;
+  const line = (sym, items) => items.map((x) => `<div>${sym} ${esc(x)}</div>`).join('');
+  $('admin-changes').innerHTML =
+    c.added.length || c.updated.length || c.removed.length
+      ? line('+', c.added) + line('~', c.updated.map((u) => (u.from === u.to ? u.to : `${u.from} → ${u.to}`))) + line('−', c.removed)
+      : `<span class="none">${t('adminNoChanges')}</span>`;
+
+  if (!keepForm) {
+    $('admin-version').value = st.suggestedVersion;
+    $('admin-server').value = st.pack.server;
+    $('admin-notes').value = '';
+  }
+}
+
+function adminError(text) {
+  const el = $('admin-step');
+  el.className = 'admin-step bad';
+  el.textContent = text;
+}
+
+async function openAdmin(status) {
+  $('admin').classList.remove('hidden');
+  $('admin-step').textContent = '';
+  if (status) return renderAdmin(status);
+  $('admin-sync').className = 'admin-sync';
+  $('admin-sync').textContent = t('adminLoading');
+  const r = await api.adminStatus(true);
+  r.ok ? renderAdmin(r.status) : adminError(r.error);
+}
+function closeAdmin() {
+  if (!publishing) $('admin').classList.add('hidden');
+}
+
+$('btn-admin').onclick = () => ($('admin').classList.contains('hidden') ? openAdmin() : closeAdmin());
+$('admin-close').onclick = closeAdmin;
+$('admin-refresh').onclick = () => openAdmin();
+$('admin-folder').onclick = () => api.adminOpenFolder();
+$('admin-add').onclick = async () => {
+  const r = await api.adminAddMods([]);
+  r.ok ? renderAdmin(r.status, { keepForm: true }) : adminError(r.error);
+};
+
+// arrastrar .jar desde el explorador de archivos
+const drop = $('admin-drop');
+drop.ondragover = (e) => {
+  e.preventDefault();
+  drop.classList.add('over');
+};
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = async (e) => {
+  e.preventDefault();
+  drop.classList.remove('over');
+  const paths = [...e.dataTransfer.files].map((f) => api.pathForFile(f)).filter((p) => /\.jar$/i.test(p));
+  if (!paths.length) return;
+  const r = await api.adminAddMods(paths);
+  r.ok ? renderAdmin(r.status, { keepForm: true }) : adminError(r.error);
+};
+// soltar archivos fuera de la zona no debe abrirlos dentro de la ventana
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
+api.onAdminStep(({ key, params }) => {
+  const el = $('admin-step');
+  el.className = 'admin-step';
+  el.textContent = t('admin.' + key, params);
+});
+
+$('admin-form').onsubmit = async (e) => {
+  e.preventDefault();
+  if (publishing) return;
+  publishing = true;
+  const btn = $('admin-publish');
+  btn.disabled = true;
+  const r = await api.adminPublish({ version: $('admin-version').value, notes: $('admin-notes').value, server: $('admin-server').value });
+  publishing = false;
+  btn.disabled = false;
+  if (!r.ok) return adminError(r.error);
+  S.packs = r.packs;
+  renderRail();
+  renderStage();
+  renderAdmin(r.status);
+  const el = $('admin-step');
+  el.className = 'admin-step ok';
+  el.textContent = t('adminDone', { title: r.result.title });
+  sfx.success();
+};
 
 /* ------------------------------------------------------------ inicio */
 (async function init() {

@@ -15,6 +15,8 @@ const { loadJvmArgs } = require('./jvmargs');
 const { gpuEnv, withEnv } = require('./gpu');
 const { snapshotMods, diffMods, isEmpty } = require('./changes');
 const { pingServer } = require('./serverping');
+const { DiscordPresence, playingActivity } = require('./discord');
+const { ModpackAdmin, nextVersion } = require('./admin');
 const { pathToFileURL } = require('url');
 let autoUpdater = null;
 try {
@@ -49,6 +51,7 @@ function logLine(text) {
 let win = null;
 let playing = false;
 let gameProc = null;
+const discord = new DiscordPresence(config.discordClientId, { log: logLine });
 
 /* ---------------------------------------------------------- utilidades */
 
@@ -494,7 +497,9 @@ ipcMain.handle('state:get', async () => {
     selectedPack: s.selectedPack || (s.packs[0] && s.packs[0].id) || null,
     accounts: s.accounts.map(publicAccount),
     selectedAccount: s.selectedAccount || null,
-    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch },
+    settings: { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, hideOnLaunch: !!s.hideOnLaunch, discord: s.discord !== false },
+    discordAvailable: !!config.discordClientId,
+    adminRepo: s.adminRepo || null,
   };
 });
 
@@ -593,8 +598,13 @@ ipcMain.handle('game:play', async (_e, packId) => {
       status('game.download', { type: e.type }, e.total ? (e.task / e.total) * 100 : null);
     });
     let hidden = false;
+    let shown = false;
     launcher.on('data', (l) => {
       log.write(l + '\n');
+      if (!shown) {
+        shown = true;
+        if (s.discord !== false && config.discordClientId) discord.setActivity(playingActivity(pack.meta || {}, Date.now()));
+      }
       if (s.hideOnLaunch && !hidden && win && !win.isDestroyed()) {
         hidden = true;
         win.hide();
@@ -605,6 +615,7 @@ ipcMain.handle('game:play', async (_e, packId) => {
     launcher.on('close', (code) => {
       const killed = gameProc && gameProc.killedByUser;
       gameProc = null;
+      if (shown) discord.clear();
       playing = false;
       if (hidden && win && !win.isDestroyed()) win.show();
       send('game-state', 'idle');
@@ -628,7 +639,9 @@ ipcMain.handle('game:play', async (_e, packId) => {
         version,
         memory: { max: `${ramGb}G`, min: '1G' },
         customArgs,
-        overrides: { gameDirectory: gameDir },
+        // cwd = carpeta de la instancia: varios mods (FancyMenu, Konkrete…) leen su config con rutas relativas
+        // y sin esto usaban la carpeta raíz del launcher, ignorando la config del modpack
+        overrides: { gameDirectory: gameDir, cwd: gameDir },
       })
     );
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
@@ -682,9 +695,71 @@ ipcMain.handle('settings:set', async (_e, patch) => {
   if (patch.lang) next.lang = patch.lang === 'en' ? 'en' : 'es';
   if (patch.nvidiaGpu != null) next.nvidiaGpu = !!patch.nvidiaGpu;
   if (patch.hideOnLaunch != null) next.hideOnLaunch = !!patch.hideOnLaunch;
+  if (patch.discord != null) next.discord = !!patch.discord;
   const s = await saveSettings(next);
   return { ramGb: s.ramGb, lang: s.lang, nvidiaGpu: !!s.nvidiaGpu, totalRamGb: Math.floor(os.totalmem() / 1073741824) };
 });
+
+/* ---------------------------------------------------- Administrar el modpack */
+
+// Solo funciona en el PC de quien tiene permiso de escritura en el repo (usa su git/gh ya configurado)
+async function adminFor() {
+  const s = await loadSettings();
+  if (!s.adminRepo) throw new Error('Elige primero la carpeta del modpack en Ajustes.');
+  return ModpackAdmin.locate(s.adminRepo);
+}
+const adminCall = (fn) => async (...args) => {
+  try {
+    return { ok: true, ...(await fn(...args)) };
+  } catch (e) {
+    logLine('admin ERROR: ' + errText(e));
+    return { ok: false, error: errText(e) };
+  }
+};
+async function adminStatus(admin, pull = true) {
+  const st = await admin.status({ pull });
+  return { ...st, suggestedVersion: nextVersion(st.pack.version) };
+}
+
+ipcMain.handle('admin:choose', adminCall(async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Carpeta del repo del modpack' });
+  if (r.canceled || !r.filePaths[0]) return { canceled: true };
+  const admin = await ModpackAdmin.locate(r.filePaths[0]);
+  await saveSettings({ adminRepo: admin.repo });
+  return { adminRepo: admin.repo, status: await adminStatus(admin) };
+}));
+ipcMain.handle('admin:forget', adminCall(async () => {
+  await saveSettings({ adminRepo: null });
+  return {};
+}));
+ipcMain.handle('admin:status', adminCall(async (_e, pull = true) => ({ status: await adminStatus(await adminFor(), pull) })));
+ipcMain.handle('admin:addMods', adminCall(async (_e, paths) => {
+  const admin = await adminFor();
+  if (!paths || !paths.length) {
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mods', extensions: ['jar'] }] });
+    if (r.canceled) return { status: await adminStatus(admin, false) };
+    paths = r.filePaths;
+  }
+  const added = await admin.addMods(paths);
+  return { added, status: await adminStatus(admin, false) };
+}));
+ipcMain.handle('admin:removeMod', adminCall(async (_e, name) => {
+  const admin = await adminFor();
+  await admin.removeMod(name);
+  return { status: await adminStatus(admin, false) };
+}));
+ipcMain.handle('admin:openFolder', adminCall(async () => {
+  const admin = await adminFor();
+  shell.openPath(admin.modsDir());
+  return {};
+}));
+ipcMain.handle('admin:publish', adminCall(async (_e, form) => {
+  const admin = await adminFor();
+  const r = await admin.publish(form, (key, params = {}) => send('admin-step', { key, params }));
+  // el modpack recién publicado se vuelve a leer, para que el launcher muestre la versión nueva
+  const packs = (await refreshPacks()).map(publicPack);
+  return { result: r, packs, status: await adminStatus(admin, false) };
+}));
 
 ipcMain.handle('server:status', async (_e, packId) => {
   const s = await loadSettings();
