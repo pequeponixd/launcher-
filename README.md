@@ -14,16 +14,14 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - Cada jugador puede cambiar el icono, fondo, logo y color de un modpack en **Ajustes → Personalizar** (solo en su PC).
 - **Quién está conectado**: muestra las caras de los jugadores al lado del estado del servidor.
 - **Discord**: tus amigos ven "Jugando Cachusafio" en tu perfil (ver abajo cómo activarlo).
-- **Menú del juego listo**: el launcher genera el menú principal de FancyMenu (fondo, logo, *Jugar en Cachusafio*, Opciones, Salir). Sin IP fija, el botón abre la lista de servidores; con IP, entra directo.
-
-## Discord Rich Presence
-1. Entra a <https://discord.com/developers/applications> → **New Application** → nómbrala "Cachusafio".
-2. Copia el **Application ID** y ponlo en `config.json` → `"discordClientId": "…"`.
-3. Publica una versión nueva del launcher. Cada jugador puede apagarlo en **Ajustes → Mostrar en Discord**.
+- **Menú del juego listo**: `node tools/make-menu.js <carpeta-del-modpack> [ip]` genera el menú principal de FancyMenu (fondo, logo, *Jugar en Cachusafio*, Opciones, Salir). Sin IP, el botón abre la lista de servidores; con IP, entra directo.
 - Si Minecraft se cierra con error, muestra las últimas líneas del log para copiarlas y pedir ayuda.
 - Botón para forzar el cierre del juego y opción para ocultar el launcher mientras juegas.
 - La sesión de Microsoft se guarda cifrada con el llavero del sistema.
 - Idiomas: Español / English.
+
+## Discord Rich Presence
+Ya viene activado con la app de Discord de Cachusafio (`discordClientId` en `config.json`). Cada jugador puede apagarlo en **Ajustes → Mostrar en Discord**.
 
 ## Crear el modpack (tú, una vez)
 1. Carpeta `modpack/` con `mods/`, `config/` (incluye `config/fancymenu/`), `resourcepacks/`… y un `pack.json` (copia `tools/pack.example.json`).

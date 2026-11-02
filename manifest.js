@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Arma el manifest.json de un modpack a partir de su carpeta (pack.json + mods/, config/…).
- * Lo usan el comando tools/generate-manifest.js y el panel de administración del launcher.
+ * Lo usa el comando tools/generate-manifest.js.
  */
 const fs = require('fs');
 const path = require('path');

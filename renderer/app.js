@@ -353,7 +353,9 @@ function renderHeads(players) {
   const more = Math.max(players.online || 0, list.length) - Math.min(list.length, MAX);
   if (more > 0) box.insertAdjacentHTML('beforeend', `<li class="more">${esc(t('more', { n: more }))}</li>`);
 }
+setInterval(() => S?.accounts.length && !document.hidden && refreshServer(), 60000);
 
+/* ------------------------------------------------------------ progreso */
 api.onStatus(({ key, params, percent }) => {
   $('status').textContent = t(key, params);
   if (key === 'game.crashed') sfx.error();

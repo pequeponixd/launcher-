@@ -57,3 +57,14 @@ test('rutas de Linux incluyen Flatpak y Snap', () => {
   assert.ok(p.includes('/run/user/1000/snap.discord/discord-ipc-0'));
   assert.ok(socketPaths('win32', {})[0].startsWith('\\\\?\\pipe\\'));
 });
+
+test('si Discord cierra la conexión sin responder, no se queda esperando', { skip: process.platform === 'win32' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-'));
+  const sockPath = path.join(dir, 'discord-ipc-0');
+  const srv = net.createServer((s) => s.on('data', () => s.destroy()));
+  await new Promise((r) => srv.listen(sockPath, r));
+  const d = new DiscordPresence('123', { paths: [sockPath] });
+  assert.equal(await d.setActivity({ details: 'x' }), false);
+  d.clear(); // sin conexión: no lanza
+  srv.close();
+});

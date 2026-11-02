@@ -70,6 +70,15 @@ class DiscordPresence {
     this.ready = (async () => {
       const sock = await connectAny(this.paths || socketPaths());
       await new Promise((resolve, reject) => {
+        // si Discord acepta el socket pero nunca responde, no quedarse esperando para siempre
+        const timer = setTimeout(() => {
+          sock.destroy();
+          reject(new Error('Discord no respondió'));
+        }, 5000);
+        const fail = (e) => {
+          clearTimeout(timer);
+          reject(e);
+        };
         let buf = Buffer.alloc(0);
         const onData = (d) => {
           buf = Buffer.concat([buf, d]);
@@ -77,12 +86,17 @@ class DiscordPresence {
           const len = buf.readInt32LE(4);
           if (buf.length < 8 + len) return;
           sock.off('data', onData);
-          const msg = JSON.parse(buf.subarray(8, 8 + len).toString());
-          if (msg.evt === 'READY') resolve();
-          else reject(new Error(msg.data?.message || 'Discord rechazó la conexión'));
+          clearTimeout(timer);
+          let msg = null;
+          try {
+            msg = JSON.parse(buf.subarray(8, 8 + len).toString());
+          } catch {}
+          if (msg?.evt === 'READY') resolve();
+          else reject(new Error(msg?.data?.message || 'Discord rechazó la conexión'));
         };
         sock.on('data', onData);
-        sock.once('error', reject);
+        sock.once('error', fail);
+        sock.once('close', () => fail(new Error('Discord cerró la conexión')));
         sock.write(encode(OP_HANDSHAKE, { v: 1, client_id: this.clientId }));
       });
       sock.on('error', () => {});
@@ -114,8 +128,11 @@ class DiscordPresence {
   }
 
   clear() {
-    if (!this.sock) return;
-    this.sock.write(encode(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid }, nonce: String(Date.now()) }));
+    // si la conexión aún se está abriendo, se borra cuando termine (si no, "Jugando" quedaba pegado)
+    if (!this.ready) return;
+    this.ready
+      .then(() => this.sock?.write(encode(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid }, nonce: String(Date.now()) })))
+      .catch(() => {});
   }
 
   close() {
