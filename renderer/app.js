@@ -303,6 +303,7 @@ async function refreshServer() {
   const el = $('server');
   // sin servidor el panel mantiene su marco y lo dice en una frase
   if (!p?.server) {
+    delete el.dataset.pack; // al volver a un modpack con servidor, que diga "revisando" y no esto
     el.className = 'server';
     el.textContent = t('serverNone');
     $('server-count').textContent = MISSING;

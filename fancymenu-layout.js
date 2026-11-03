@@ -408,22 +408,10 @@ function installMenu(packDir, { server = '', label } = {}) {
     screens[id] = cls;
   }
   // pantalla de carga del juego, solo si el modpack trae Drippy Loading Screen
-  const drippyCfg = path.join(packDir, 'config', 'drippyloadingscreen', 'options.txt');
   const hasDrippy = fs.existsSync(path.join(packDir, 'mods')) && fs.readdirSync(path.join(packDir, 'mods')).some((f) => /^drippyloadingscreen/i.test(f));
   if (hasDrippy && hasBg && has('loading-bar.png') && has('loading-bar-bg.png')) {
     write('cachusafio_carga.txt', buildLoadingLayout({ background: 'background.png', logoSize }));
     screens.drippy = 'de.keksuccino.drippyloadingscreen.customization.DrippyOverlayScreen';
-    // la primera ventana de Forge (antes de que carguen los mods) también con el fondo, logo y barra
-    const opt = (k, v) => setOption(drippyCfg, k, v) && !changed.includes(drippyCfg) && changed.push(drippyCfg);
-    opt('early_loading_background_texture_path', '/config/fancymenu/assets/background.png');
-    if (hasLogo) {
-      opt('early_loading_logo_texture_path', '/config/fancymenu/assets/logo.png');
-      opt('early_loading_logo_width', '480');
-      opt('early_loading_logo_height', String(Math.round((480 * logoSize[1]) / logoSize[0])));
-    }
-    opt('early_loading_bar_progress_texture_path', '/config/fancymenu/assets/loading-bar.png');
-    opt('early_loading_bar_background_texture_path', '/config/fancymenu/assets/loading-bar-bg.png');
-    opt('early_loading_bar_height', '20');
   }
   // todos los botones y deslizadores de Minecraft (Opciones, Cancelar, Volver…) con el mismo estilo.
   // nine-slice: solo se estira el centro, así la textura sirve para botones de cualquier ancho
