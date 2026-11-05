@@ -136,8 +136,10 @@ function applyI18n() {
   $('lang-login').value = lang;
 }
 
+// faces[idCuenta] = cara sacada de la skin del Vestidor (la pone wardrobe.js); si no, mc-heads
+const faces = {};
 const head = (a, size = 64) =>
-  a ? `https://mc-heads.net/avatar/${encodeURIComponent(a.type === 'offline' ? a.name : a.uuid)}/${size}` : '';
+  a ? faces[a.id] || `https://mc-heads.net/avatar/${encodeURIComponent(a.type === 'offline' ? a.name : a.uuid)}/${size}` : '';
 const STEVE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#6b4a35"/><rect y="3" width="8" height="5" fill="#d2a47c"/><rect x="1" y="4" width="2" height="1" fill="#fff"/><rect x="5" y="4" width="2" height="1" fill="#fff"/><rect x="2" y="4" width="1" height="1" fill="#4a3aa8"/><rect x="5" y="4" width="1" height="1" fill="#4a3aa8"/></svg>');
 
@@ -151,6 +153,8 @@ const MISSING = '\u2014'; // valor que falta (raya gris), no un cero
 const LOADERS = { forge: 'Forge', neoforge: 'NeoForge', fabric: 'Fabric', quilt: 'Quilt', vanilla: 'Vanilla' };
 
 const curPack = () => S.packs.find((p) => p.id === S.selectedPack) || S.packs[0] || null;
+// la define wardrobe.js (cara del avatar y Vestidor de la cuenta nueva)
+let onAccountChange = () => {};
 const curAcc = () => S.accounts.find((a) => a.id === S.selectedAccount) || S.accounts[0] || null;
 
 /* ------------------------------------------------------------ pantallas */
@@ -415,6 +419,7 @@ async function afterLogin() {
   sfx.success();
   S = await api.getState();
   show();
+  onAccountChange();
 }
 
 $('btn-ms').onclick = async () => {
@@ -469,6 +474,7 @@ function openAccountMenu() {
       await api.selectAccount(a.id);
       menu.classList.add('hidden');
       renderRail();
+      onAccountChange();
     };
     row.querySelector('.x').onclick = async () => {
       const r = await api.removeAccount(a.id);
@@ -476,6 +482,7 @@ function openAccountMenu() {
       S.selectedAccount = r.selectedAccount;
       menu.classList.add('hidden');
       show();
+      onAccountChange();
     };
     menu.appendChild(row);
   }
@@ -657,6 +664,7 @@ api.onUpdater(showUpdate);
   lang = S.settings.lang;
   applyI18n();
   show();
+  onAccountChange();
   // actualiza nombres/iconos/fondos desde internet sin bloquear la ventana
   api.refreshPacks().then((packs) => {
     S.packs = packs;

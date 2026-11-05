@@ -1,6 +1,6 @@
 {
   "name": "cachusafio-launcher",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Launcher de modpacks de Cachusafio",
   "author": "Cachusafio",
   "main": "main.js",
@@ -39,6 +39,8 @@
       "serverping.js",
       "discord.js",
       "changes.js",
+      "skins.js",
+      "capes.js",
       "preload.js",
       "config.json",
       "renderer/**/*",

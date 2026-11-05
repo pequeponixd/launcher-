@@ -16,6 +16,8 @@ const { gpuEnv, withEnv } = require('./gpu');
 const { snapshotMods, diffMods, isEmpty } = require('./changes');
 const { pingServer } = require('./serverping');
 const { DiscordPresence, playingActivity } = require('./discord');
+const skins = require('./skins');
+const { CAPES, isCapeHash, capeUrl } = require('./capes');
 const { pathToFileURL } = require('url');
 let autoUpdater = null;
 try {
@@ -37,6 +39,8 @@ const SETTINGS_FILE = path.join(ROOT, 'launcher.json');
 const LOG_FILE = path.join(ROOT, 'latest.log');
 const LAUNCHER_LOG = path.join(ROOT, 'launcher.log');
 const CUSTOM = path.join(ROOT, 'custom'); // fondos/iconos/logos que el jugador eligió para cada modpack
+const SKINS = path.join(ROOT, 'skins'); // skin elegida en el Vestidor, una por cuenta
+const CAPE_CACHE = path.join(ROOT, 'capes'); // texturas de capas oficiales ya descargadas
 
 // cachu://custom/<pack>/<archivo> sirve esas imágenes a la interfaz sin abrirle todo el disco
 protocol.registerSchemesAsPrivileged([{ scheme: 'cachu', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -562,6 +566,7 @@ ipcMain.handle('game:play', async (_e, packId) => {
     const javaPath = await ensureJava(manifest.minecraft);
     const customVersion = await ensureLoader(javaPath, manifest.minecraft, manifest.loader);
     await syncPack(manifest, pack.url, gameDir);
+    await prepareGameSkin(acc, gameDir).catch((e) => logLine('skin: ' + errText(e)));
 
     // guarda qué mods cambiaron respecto a la última vez, para la sección "Novedades"
     const snap = snapshotMods(manifest.files);
@@ -769,6 +774,115 @@ ipcMain.handle('app:installUpdate', () => {
   if (!updateReady || playing) return { ok: false };
   autoUpdater.quitAndInstall();
   return { ok: true };
+});
+
+/* ---------------------------------------------------------------- Vestidor */
+
+const currentAccount = (s) => s.accounts.find((a) => a.id === s.selectedAccount) || s.accounts[0] || null;
+const readSkinFile = (file) => (file ? fsp.readFile(path.join(SKINS, file)).catch(() => null) : Promise.resolve(null));
+
+// Texturas oficiales (capas, Steve/Alex) descargadas una vez y guardadas
+async function capeTexture(hash) {
+  const file = path.join(CAPE_CACHE, hash + '.png');
+  const cached = await fsp.readFile(file).catch(() => null);
+  if (cached) return cached;
+  const r = await fetch(capeUrl(hash), { signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!skins.pngSize(buf)) throw new Error('no es PNG');
+  await fsp.mkdir(CAPE_CACHE, { recursive: true });
+  await fsp.writeFile(file, buf);
+  return buf;
+}
+
+// Copia la skin y la capa de la cuenta a la instancia (el mod las lee de ahí al entrar a un mundo)
+async function prepareGameSkin(acc, gameDir) {
+  const choice = skins.normalizeChoice(acc.skin);
+  const png = await readSkinFile(choice.file);
+  await skins.writeGameSkin(gameDir, png, choice);
+  if (choice.cape) {
+    // el mod usa esta copia y así no tiene que descargarla
+    const tex = await capeTexture(choice.cape).catch(() => null);
+    if (tex) {
+      await fsp.mkdir(path.join(gameDir, 'cachusafio', 'capes'), { recursive: true });
+      await fsp.writeFile(path.join(gameDir, 'cachusafio', 'capes', choice.cape + '.png'), tex);
+    }
+  }
+}
+
+ipcMain.handle('skins:get', async () => {
+  const s = await loadSettings();
+  const acc = currentAccount(s);
+  if (!acc) return null;
+  const c = skins.normalizeChoice(acc.skin);
+  const png = await readSkinFile(c.file);
+  return { png: png ? skins.pngToDataUrl(png) : null, slim: c.slim, cape: c.cape, base: await baseSkin(acc) };
+});
+
+// Cómo se ve la cuenta sin skin del Vestidor: su skin premium, o Steve/Alex como en el juego
+const baseSkinCache = new Map();
+async function baseSkin(acc) {
+  if (baseSkinCache.has(acc.id)) return baseSkinCache.get(acc.id);
+  let out = null;
+  if (acc.type === 'microsoft') {
+    out = await skins.fetchPremiumSkin(acc.name).then((r) => ({ png: skins.pngToDataUrl(r.png), slim: r.slim }), () => null);
+  }
+  if (!out) {
+    const d = skins.defaultSkinFor(acc.uuid);
+    out = await capeTexture(d.hash).then((b) => ({ png: skins.pngToDataUrl(b), slim: d.slim }), () => null);
+  }
+  if (out) baseSkinCache.set(acc.id, out);
+  return out;
+}
+
+// png: data URL = skin nueva, null = volver a la normal, undefined = no cambiarla
+ipcMain.handle('skins:save', async (_e, { png, slim, cape } = {}) => {
+  const s = await loadSettings();
+  const acc = currentAccount(s);
+  if (!acc) return { ok: false, error: 'noAccount' };
+  if (cape != null && !isCapeHash(cape)) return { ok: false, error: 'skinBadCape' };
+  const c = skins.normalizeChoice(acc.skin);
+  if (png !== undefined) {
+    if (c.file) await fsp.rm(path.join(SKINS, c.file), { force: true });
+    c.file = null;
+    if (png !== null) {
+      const buf = skins.dataUrlToPng(png);
+      const bad = buf ? skins.checkSkin(buf) : 'skinNotPng';
+      if (bad) return { ok: false, error: bad };
+      await fsp.mkdir(SKINS, { recursive: true });
+      c.file = crypto.createHash('sha1').update(acc.id).digest('hex').slice(0, 16) + '-' + Date.now().toString(36) + '.png';
+      await fsp.writeFile(path.join(SKINS, c.file), buf);
+    }
+  }
+  c.slim = !!slim;
+  c.cape = cape || null;
+  acc.skin = c;
+  await saveSettings();
+  return { ok: true };
+});
+
+// Lista de capas con su textura (data URL); las que no se pudieron bajar vienen con png: null
+ipcMain.handle('skins:capes', async () => {
+  const out = CAPES.map((c) => ({ ...c, png: null }));
+  let next = 0;
+  const worker = async () => {
+    while (next < out.length) {
+      const c = out[next++];
+      const buf = await capeTexture(c.hash).catch((e) => { logLine(`capa ${c.id}: ${errText(e)}`); return null; });
+      if (buf) c.png = skins.pngToDataUrl(buf);
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, worker));
+  return out;
+});
+
+ipcMain.handle('skins:fromPlayer', async (_e, name) => {
+  try {
+    const { png, slim } = await skins.fetchPremiumSkin(String(name || '').trim());
+    return { ok: true, png: skins.pngToDataUrl(png), slim };
+  } catch (e) {
+    return { ok: false, error: errText(e) };
+  }
 });
 
 ipcMain.handle('system:info', () => ({ totalRamGb: Math.floor(os.totalmem() / 1073741824) }));

@@ -55,6 +55,22 @@ function buildManifest(src) {
     if (fs.existsSync(full)) add(full);
   }
 
+  // Los archivos de externalUrls suelen no estar en la carpeta (pesan demasiado para el repo).
+  // Si faltan, se reutiliza su entrada del manifest anterior; sin ella no se puede saber su hash.
+  // Dejarlos fuera haría que el launcher los BORRARA a todos los jugadores (mods/ es carpeta administrada).
+  const missing = Object.keys(external).filter((rel) => !files.some((f) => f.path === rel));
+  if (missing.length) {
+    let prev = [];
+    try {
+      prev = JSON.parse(fs.readFileSync(path.join(src, 'manifest.json'), 'utf8')).files || [];
+    } catch {}
+    for (const rel of missing) {
+      const old = prev.find((f) => f.path === rel && f.sha1 && f.size);
+      if (!old) throw new Error(`Falta ${rel}: ponlo en la carpeta (o deja el manifest.json anterior) para calcular su hash`);
+      files.push({ path: rel, sha1: old.sha1, size: old.size, url: external[rel] });
+    }
+  }
+
   return {
     id: pack.id,
     name: pack.name,

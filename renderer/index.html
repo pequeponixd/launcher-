@@ -15,6 +15,9 @@
     <symbol id="i-plus" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M8 3v10M3 8h10"/></symbol>
     <symbol id="i-chev" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M4.5 6.5L8 10l3.5-3.5"/></symbol>
     <symbol id="i-x" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-shirt" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" d="M5.75 1.75L1.75 4l1.5 3 1.5-.75v7.5h6.5v-7.5l1.5.75 1.5-3-4-2.25c-.5 1-1.25 1.5-2.25 1.5s-1.75-.5-2.25-1.5z"/></symbol>
+    <symbol id="i-walk" viewBox="0 0 16 16"><circle cx="9" cy="2.75" r="1.25" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M5 7.5l2-2.5h3l1.5 2.5M8 5l-1 4.5 2.5 2 .5 3M7 9.5l-2.5 5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M8 10.5V2.5M4.75 5.75L8 2.5l3.25 3.25M2.5 10.5v3h11v-3"/></symbol>
     <symbol id="i-ms" viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z"/></symbol>
     <!-- marca de Cachusafio: una C de bloques, como el icono del launcher -->
     <symbol id="i-mark" viewBox="0 0 8 8"><path fill="#e0112b" d="M0 0h8v8H0z"/><path fill="#f5f0eb" d="M2 1h4v1H2zM1 2h1v4H1zM2 6h4v1H2zM6 2h1v1H6zM6 5h1v1H6z"/></symbol>
@@ -61,6 +64,7 @@
       <button class="nav-item" id="btn-add"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span data-i18n="addPack">Agregar modpack</span></button>
 
       <div class="side-bottom">
+        <button class="nav-item" id="btn-wardrobe"><svg class="ic" aria-hidden="true"><use href="#i-shirt"/></svg><span data-i18n="wardrobe">Vestidor</span></button>
         <button class="nav-item" id="btn-settings"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span data-i18n="settings">Ajustes</span></button>
       </div>
     </aside>
@@ -80,7 +84,7 @@
         </button>
       </header>
 
-      <div class="canvas">
+      <div class="canvas" id="home">
         <!-- Fila de título: el modpack es el h1; a la derecha, la tarea principal -->
         <div class="title-row">
           <div class="title-text">
@@ -114,6 +118,57 @@
         </div>
       </div>
 
+      <!-- Vestidor: visor 3D a la izquierda, skin/capa a la derecha -->
+      <div class="canvas hidden" id="wardrobe">
+        <div class="title-row">
+          <div class="title-text">
+            <h1 data-i18n="wardrobe">Vestidor</h1>
+            <p class="subline" data-i18n="wr.sub">Tu skin y tu capa se ven dentro del servidor, para todos los que juegan con este launcher.</p>
+          </div>
+          <span class="saved" id="wr-saved" role="status"></span>
+        </div>
+        <div class="wr-grid">
+          <section class="panel wr-view">
+            <div class="wr-stage" id="wr-stage"><canvas id="wr-canvas"></canvas></div>
+            <div class="wr-tools">
+              <div class="seg" id="wr-model" role="radiogroup">
+                <button role="radio" data-model="default" data-i18n="wr.classic">Clásico</button>
+                <button role="radio" data-model="slim" data-i18n="wr.slim">Delgado</button>
+              </div>
+              <span class="spacer"></span>
+              <button class="icon-btn" id="wr-walk" aria-pressed="false" data-i18n-title="wr.walk" data-i18n-label="wr.walk"><svg class="ic" aria-hidden="true"><use href="#i-walk"/></svg></button>
+            </div>
+            <p class="hint" data-i18n="wr.drag">Arrastra para girar · rueda para acercar</p>
+          </section>
+          <section class="panel wr-pick">
+            <div class="tabs" role="tablist">
+              <button role="tab" id="wr-tab-skin" aria-selected="true" data-i18n="wr.skin">Skin</button>
+              <button role="tab" id="wr-tab-cape" aria-selected="false" data-i18n="wr.cape">Capa</button>
+            </div>
+            <div id="wr-pane-skin" role="tabpanel">
+              <label class="drop" id="wr-drop">
+                <input type="file" id="wr-file" accept="image/png" hidden />
+                <svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg>
+                <b data-i18n="wr.drop">Arrastra tu skin aquí</b>
+                <small data-i18n="wr.dropSub">o haz clic para elegir un .png de 64×64</small>
+              </label>
+              <label class="field-label" for="wr-player" data-i18n="wr.copyLabel">Copiar la skin de un jugador premium</label>
+              <div class="joined">
+                <input type="text" id="wr-player" maxlength="16" spellcheck="false" autocomplete="off" data-i18n-ph="login.nick" />
+                <button class="btn" id="wr-copy" data-i18n="wr.copy">Copiar</button>
+              </div>
+              <p class="err" id="wr-err" role="alert"></p>
+              <button class="btn danger hidden" id="wr-reset" data-i18n="wr.reset">Quitar mi skin</button>
+            </div>
+            <div id="wr-pane-cape" role="tabpanel" class="hidden">
+              <p class="cape-now" id="wr-cape-name"></p>
+              <div class="capes" id="wr-capes"></div>
+            </div>
+            <p class="hint wr-note" data-i18n="wr.note">Los cambios se guardan solos y se aplican la próxima vez que entres al juego.</p>
+          </section>
+        </div>
+      </div>
+
     </main>
   </section>
 
@@ -126,6 +181,8 @@
   </div>
 
   <script src="sfx.js"></script>
+  <script src="vendor/skinview3d.bundle.js"></script>
   <script src="app.js"></script>
+  <script src="wardrobe.js"></script>
 </body>
 </html>
