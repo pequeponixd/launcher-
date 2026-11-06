@@ -99,8 +99,9 @@ async function pingServer(address, { timeoutMs = 5000 } = {}) {
     sock.on('connect', () => {
       const port = Buffer.alloc(2);
       port.writeUInt16BE(target.port);
-      // handshake (protocolo -1 = "cualquiera", siguiente estado 1 = status) + pedido de estado
-      sock.write(packet(varint(0), varint(-1 >>> 0), mcString(target.original || target.host), port, varint(1)));
+      // handshake (siguiente estado 1 = status) + pedido de estado.
+      // Protocolo real (763 = 1.20.1): con -1 los túneles de playit.gg cortan la conexión
+      sock.write(packet(varint(0), varint(763), mcString(target.original || target.host), port, varint(1)));
       sock.write(packet(varint(0)));
     });
     sock.on('data', (chunk) => {
