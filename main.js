@@ -377,7 +377,8 @@ function offlineUuid(name) {
 async function upsertAccount(acc) {
   const s = await loadSettings();
   const i = s.accounts.findIndex((a) => a.id === acc.id);
-  if (i >= 0) s.accounts[i] = acc;
+  // al volver a iniciar sesión se conservan la skin y la clave del servidor (sin ella el servidor lo expulsa)
+  if (i >= 0) s.accounts[i] = { ...s.accounts[i], ...acc };
   else s.accounts.push(acc);
   s.selectedAccount = acc.id;
   await saveSettings();
@@ -865,7 +866,16 @@ async function capeTexture(hash) {
 // Copia la skin y la capa de la cuenta a la instancia (el mod las lee de ahí al entrar a un mundo)
 async function prepareGameSkin(acc, gameDir) {
   const choice = skins.normalizeChoice(acc.skin);
-  const png = await readSkinFile(choice.file);
+  let png = await readSkinFile(choice.file);
+  // el servidor es offline y no pide skins a Mojang: lo premium que no se cambió en el Vestidor se manda desde aquí
+  if (acc.type === 'microsoft' && (!png || !choice.cape)) {
+    const premium = await skins.fetchPremiumSkin(acc.name).catch(() => null);
+    if (premium && !png) {
+      png = premium.png;
+      choice.slim = premium.slim;
+    }
+    if (premium && !choice.cape) choice.cape = premium.cape;
+  }
   await skins.writeGameSkin(gameDir, png, choice);
   if (choice.cape) {
     // el mod usa esta copia y así no tiene que descargarla
