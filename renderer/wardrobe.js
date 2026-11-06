@@ -175,6 +175,7 @@ Object.assign(T.en, {
   }
 
   async function setSkin(src, slimHint) {
+    if (!W) return; // todavía cargando la cuenta
     $('wr-err').textContent = '';
     let canvas;
     try {

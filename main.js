@@ -411,6 +411,9 @@ ipcMain.handle('auth:select', async (_e, id) => {
 
 ipcMain.handle('auth:remove', async (_e, id) => {
   const s = await loadSettings();
+  const gone = s.accounts.find((a) => a.id === id);
+  const file = gone && skins.normalizeChoice(gone.skin).file;
+  if (file) await fsp.rm(path.join(SKINS, file), { force: true }); // su skin del Vestidor ya no sirve
   s.accounts = s.accounts.filter((a) => a.id !== id);
   if (s.selectedAccount === id) s.selectedAccount = s.accounts[0] ? s.accounts[0].id : null;
   await saveSettings();
@@ -826,12 +829,14 @@ async function baseSkin(acc) {
   let out = null;
   if (acc.type === 'microsoft') {
     out = await skins.fetchPremiumSkin(acc.name).then((r) => ({ png: skins.pngToDataUrl(r.png), slim: r.slim }), () => null);
+    if (out) baseSkinCache.set(acc.id, out);
   }
   if (!out) {
+    // sin conexión con Mojang se muestra Steve/Alex por ahora, pero sin guardarlo: la próxima vez se reintenta
     const d = skins.defaultSkinFor(acc.uuid);
     out = await capeTexture(d.hash).then((b) => ({ png: skins.pngToDataUrl(b), slim: d.slim }), () => null);
+    if (out && acc.type !== 'microsoft') baseSkinCache.set(acc.id, out);
   }
-  if (out) baseSkinCache.set(acc.id, out);
   return out;
 }
 
