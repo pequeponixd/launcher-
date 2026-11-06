@@ -77,7 +77,7 @@ async function writeGameSkin(gameDir, skinPng, choice) {
 
 /**
  * Skin de un jugador premium por su nombre, con la API oficial de Mojang.
- * Devuelve { png: Buffer, slim } o lanza un error con una clave para la interfaz.
+ * Devuelve { png: Buffer, slim, cape: hash o null } o lanza un error con una clave para la interfaz.
  */
 async function fetchPremiumSkin(name, fetchImpl = fetch) {
   if (!/^[A-Za-z0-9_]{3,16}$/.test(String(name || ''))) throw new Error('invalidName');
@@ -95,7 +95,8 @@ async function fetchPremiumSkin(name, fetchImpl = fetch) {
   const skin = tex.SKIN;
   if (!skin || !/^https?:\/\/textures\.minecraft\.net\/texture\/[0-9a-f]+$/.test(skin.url)) throw new Error('skinNoSkin');
   const png = Buffer.from(await (await get(skin.url.replace(/^http:/, 'https:'))).arrayBuffer());
-  return { png, slim: skin.metadata?.model === 'slim' };
+  const cape = /\/texture\/([0-9a-f]+)$/.exec(tex.CAPE?.url || '');
+  return { png, slim: skin.metadata?.model === 'slim', cape: cape ? cape[1] : null };
 }
 
 module.exports = { DEFAULT_SKINS, defaultSkinFor, pngSize, checkSkin, dataUrlToPng, pngToDataUrl, normalizeChoice, writeGameSkin, fetchPremiumSkin, MAX_SKIN_BYTES };

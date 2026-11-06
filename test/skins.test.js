@@ -102,7 +102,7 @@ test('writeGameSkin deja skin.png y skin.json, y los borra si no hay nada elegid
 
 test('fetchPremiumSkin sigue perfil → sesión → textura y detecta brazos delgados', async () => {
   const p = png(64, 64);
-  const tex = Buffer.from(JSON.stringify({ textures: { SKIN: { url: 'http://textures.minecraft.net/texture/abc123', metadata: { model: 'slim' } } } })).toString('base64');
+  const tex = Buffer.from(JSON.stringify({ textures: { SKIN: { url: 'http://textures.minecraft.net/texture/abc123', metadata: { model: 'slim' } }, CAPE: { url: 'http://textures.minecraft.net/texture/cafe01' } } })).toString('base64');
   const calls = [];
   const fake = async (url) => {
     calls.push(url);
@@ -113,6 +113,7 @@ test('fetchPremiumSkin sigue perfil → sesión → textura y detecta brazos del
   const r = await skins.fetchPremiumSkin('Notch', fake);
   assert.ok(r.png.equals(p));
   assert.strictEqual(r.slim, true);
+  assert.strictEqual(r.cape, 'cafe01');
   assert.strictEqual(calls[2], 'https://textures.minecraft.net/texture/abc123');
 
   const missing = async () => ({ ok: false, status: 204 });
