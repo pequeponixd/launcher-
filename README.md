@@ -14,6 +14,7 @@ Launcher de modpacks para Windows 10/11 y Linux (Arch y otras). Tus amigos lo ab
 - Cada jugador puede cambiar el icono, fondo, logo y color de un modpack en **Ajustes → Personalizar** (solo en su PC).
 - **Quién está conectado**: muestra las caras de los jugadores al lado del estado del servidor.
 - **Vestidor**: cada jugador elige su skin (archivo .png, o copiada de un jugador premium) y una de las 45 capas oficiales, con vista 3D. Se ve dentro del servidor —también sin premium— gracias al mod `cachusafio-skins` del modpack, que **también tiene que estar en la carpeta `mods/` del servidor**.
+- **PIN para cuentas sin premium** (4 a 6 números): el launcher lo pide una vez cada vez que se abre, y el servidor lo usa para que nadie más entre con tu nombre (necesita `cachusafio-skins` 1.1+ en el servidor). PIN olvidado: un operador usa `/cachusafio pin reset <nombre>`.
 - **Discord**: tus amigos ven "Jugando Cachusafio" en tu perfil (ver abajo cómo activarlo).
 - **Menú del juego listo**: `node tools/make-menu.js <carpeta-del-modpack> [ip]` genera el menú principal de FancyMenu (fondo, logo, *Jugar en Cachusafio*, Opciones, Salir). Sin IP, el botón abre la lista de servidores; con IP, entra directo.
 - Si Minecraft se cierra con error, muestra las últimas líneas del log para copiarlas y pedir ayuda.

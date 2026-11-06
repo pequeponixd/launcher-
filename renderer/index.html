@@ -38,11 +38,16 @@
 
       <form id="offline-form" class="hidden">
         <label for="offline-name" class="field-label" data-i18n="login.nick">Tu nombre de jugador</label>
-        <div class="joined">
-          <input id="offline-name" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="nick-rule" />
-          <button class="btn primary" type="submit" data-i18n="login.enter">Entrar</button>
-        </div>
+        <input id="offline-name" class="wide" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="nick-rule" />
         <p class="hint" id="nick-rule" data-i18n="nickRule">3 a 16 letras, números o guion bajo</p>
+        <div class="pin-row">
+          <label><span class="field-label" data-i18n="pin.new">PIN</span>
+            <input type="password" id="offline-pin" class="pin" inputmode="numeric" maxlength="6" autocomplete="new-password" aria-describedby="pin-rule" /></label>
+          <label><span class="field-label" data-i18n="pin.repeat">Repite el PIN</span>
+            <input type="password" id="offline-pin2" class="pin" inputmode="numeric" maxlength="6" autocomplete="new-password" /></label>
+        </div>
+        <p class="hint" id="pin-rule" data-i18n="pin.why">4 a 6 números. Lo pide el launcher para jugar, y el servidor lo usa para que nadie más entre con tu nombre.</p>
+        <button class="btn primary wide" type="submit" data-i18n="login.enter">Entrar</button>
       </form>
       <p class="err" id="login-error" role="alert"></p>
 

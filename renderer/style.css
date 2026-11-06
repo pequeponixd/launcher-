@@ -341,3 +341,16 @@ html[lang=en] .pack.offline .n small::after { content: " · offline"; }
 @media (max-width: 1000px) {
   .wr-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------------- PIN ---------------- */
+input.wide { width: 100%; }
+input[type=password] {
+  background: var(--ground); color: var(--text); border: 1px solid var(--control);
+  border-radius: var(--radius-inner); padding: 0 12px; height: 40px; font: inherit; outline: none; width: 100%;
+}
+input.pin { letter-spacing: .35em; font-variant-numeric: tabular-nums; }
+.pin-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pin-row .field-label { margin-top: 12px; }
+#offline-form > .btn { margin-top: 16px; }
+.dialog .pin-row { margin-top: -4px; }
+.dialog input.pin.solo { width: 100%; font-size: 20px; text-align: center; height: 48px; }

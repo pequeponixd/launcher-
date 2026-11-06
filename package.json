@@ -40,6 +40,7 @@
       "discord.js",
       "changes.js",
       "skins.js",
+      "pin.js",
       "capes.js",
       "preload.js",
       "config.json",

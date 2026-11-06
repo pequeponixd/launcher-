@@ -17,6 +17,7 @@ const { snapshotMods, diffMods, isEmpty } = require('./changes');
 const { pingServer } = require('./serverping');
 const { DiscordPresence, playingActivity } = require('./discord');
 const skins = require('./skins');
+const pin = require('./pin');
 const { CAPES, isCapeHash, capeUrl } = require('./capes');
 const { pathToFileURL } = require('url');
 let autoUpdater = null;
@@ -357,7 +358,12 @@ const syncPack = (manifest, manifestUrl, gameDir) =>
 
 const authManager = new Auth('select_account');
 
-const publicAccount = (a) => ({ id: a.id, type: a.type, name: a.name, uuid: a.uuid });
+const publicAccount = (a) => ({ id: a.id, type: a.type, name: a.name, uuid: a.uuid, hasPin: !!a.pin });
+
+// PIN de cuentas offline: clave para el servidor de las cuentas desbloqueadas en esta sesión del launcher
+// (solo en memoria; al cerrar el launcher hay que escribir el PIN otra vez)
+const unlocked = new Map();
+const pinAttempts = new pin.Attempts();
 
 // UUID de jugador sin premium, igual que calcula Minecraft ("OfflinePlayer:<nombre>")
 function offlineUuid(name) {
@@ -396,13 +402,68 @@ ipcMain.handle('auth:microsoft', async () => {
   }
 });
 
-ipcMain.handle('auth:offline', async (_e, rawName) => {
+ipcMain.handle('auth:offline', async (_e, rawName, rawPin) => {
   const name = String(rawName || '').trim();
   if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return { ok: false, error: 'invalidName' };
-  const acc = { id: 'off:' + name.toLowerCase(), type: 'offline', name, uuid: offlineUuid(name) };
+  if (!pin.isValidPin(rawPin)) return { ok: false, error: 'pinInvalid' };
+  const id = 'off:' + name.toLowerCase();
+  const s = await loadSettings();
+  const old = s.accounts.find((a) => a.id === id);
+  // la cuenta ya está en este PC: solo se vuelve a entrar con el mismo PIN (si no, cualquiera podría cambiarlo)
+  if (old?.pin) {
+    if (pinAttempts.wait(id)) return { ok: false, error: 'pinWait' };
+    if (!pin.checkPin(rawPin, old.pin)) {
+      pinAttempts.fail(id);
+      return { ok: false, error: 'pinTaken' };
+    }
+    pinAttempts.ok(id);
+  }
+  const acc = { ...old, id, type: 'offline', name, uuid: offlineUuid(name), pin: old?.pin || pin.hashPin(rawPin) };
   await upsertAccount(acc);
+  unlocked.set(id, pin.pinToken(name, rawPin));
   return { ok: true, account: publicAccount(acc) };
 });
+
+// Cuenta offline de una versión anterior, sin PIN: lo crea (y queda desbloqueada)
+ipcMain.handle('auth:setPin', async (_e, id, rawPin) => {
+  const s = await loadSettings();
+  const acc = s.accounts.find((a) => a.id === id && a.type === 'offline');
+  if (!acc) return { ok: false, error: 'noAccount' };
+  if (acc.pin) return { ok: false, error: 'pinAlready' };
+  if (!pin.isValidPin(rawPin)) return { ok: false, error: 'pinInvalid' };
+  acc.pin = pin.hashPin(rawPin);
+  await saveSettings();
+  unlocked.set(id, pin.pinToken(acc.name, rawPin));
+  return { ok: true };
+});
+
+ipcMain.handle('auth:unlock', async (_e, id, rawPin) => {
+  const s = await loadSettings();
+  const acc = s.accounts.find((a) => a.id === id && a.type === 'offline');
+  if (!acc || !acc.pin) return { ok: false, error: 'noAccount' };
+  const wait = pinAttempts.wait(id);
+  if (wait) return { ok: false, error: 'pinWait', seconds: Math.ceil(wait / 1000) };
+  if (!pin.checkPin(rawPin, acc.pin)) {
+    pinAttempts.fail(id);
+    return { ok: false, error: 'pinWrong' };
+  }
+  pinAttempts.ok(id);
+  unlocked.set(id, pin.pinToken(acc.name, rawPin));
+  return { ok: true };
+});
+
+// Clave que el juego manda al servidor (variable de entorno, nunca a un archivo). null = falta el PIN.
+async function serverToken(acc) {
+  if (acc.type === 'offline') return unlocked.get(acc.id) || null;
+  // Microsoft: el inicio de sesión ya prueba quién es; se usa una clave al azar guardada (cifrada) en la cuenta
+  const s = await loadSettings();
+  const stored = s.accounts.find((a) => a.id === acc.id) || acc;
+  if (!stored.serverKey) {
+    stored.serverKey = sealToken(pin.randomToken());
+    await saveSettings();
+  }
+  return openToken(stored.serverKey);
+}
 
 ipcMain.handle('auth:select', async (_e, id) => {
   await saveSettings({ selectedAccount: id });
@@ -556,6 +617,8 @@ ipcMain.handle('game:play', async (_e, packId) => {
   if (!acc) return { ok: false, error: 'noAccount' };
   const pack = s.packs.find((p) => p.id === packId);
   if (!pack) return { ok: false, error: 'noPack' };
+  if (acc.type === 'offline' && !acc.pin) return { ok: false, error: 'pinSetup' };
+  if (acc.type === 'offline' && !unlocked.has(acc.id)) return { ok: false, error: 'pinLocked' };
 
   playing = true;
   send('game-state', 'preparing');
@@ -635,8 +698,9 @@ ipcMain.handle('game:play', async (_e, packId) => {
 
     status('game.start', {}, null);
     const gpuVars = gpuEnv(process.platform, s.nvidiaGpu);
+    const authToken = await serverToken(acc).catch(() => null);
     if (Object.keys(gpuVars).length) logLine('gráfica NVIDIA activada (PRIME render offload)');
-    const proc = await withEnv(gpuVars, () =>
+    const proc = await withEnv({ ...gpuVars, ...(authToken ? { CACHUSAFIO_AUTH: authToken } : {}) }, () =>
       launcher.launch({
         authorization,
         root: ROOT,

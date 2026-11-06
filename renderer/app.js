@@ -58,6 +58,13 @@ const T = {
     serverTitle: 'En el servidor', serverNone: 'Este modpack todavía no tiene servidor.', nobody: 'No hay nadie conectado.',
     playersHidden: 'El servidor no muestra quién está conectado.', more: 'y {n} más', nickRule: '3 a 16 letras, números o guion bajo',
     updateFinding: 'Actualización lista: {changes}. Se descarga al darle Jugar.',
+    'pin.new': 'PIN', 'pin.repeat': 'Repite el PIN',
+    'pin.why': '4 a 6 números. Lo pide el launcher para jugar, y el servidor lo usa para que nadie más entre con tu nombre.',
+    'pin.ask': 'PIN de {name}', 'pin.askSub': 'Escríbelo para jugar con esta cuenta. Se pide una vez cada vez que abres el launcher.',
+    'pin.setup': 'Crea un PIN para {name}', 'pin.setupSub': 'Desde ahora el servidor protege tu nombre con este PIN: la primera vez que entres queda registrado. Si lo olvidas, un admin puede reiniciarlo.',
+    'pin.ok': 'Jugar', pinInvalid: 'El PIN debe tener de 4 a 6 números.', pinMismatch: 'Los dos PIN no coinciden.',
+    pinWrong: 'PIN incorrecto.', pinWait: 'Demasiados intentos. Espera unos segundos.', pinTaken: 'Esa cuenta ya está en este PC con otro PIN.',
+    pinAlready: 'Esa cuenta ya tiene PIN.',
     modNew1: '1 mod nuevo', modNewN: '{n} mods nuevos', modUp1: '1 actualizado', modUpN: '{n} actualizados', modRm1: '1 quitado', modRmN: '{n} quitados', and: 'y',
   },
   en: {
@@ -115,6 +122,13 @@ const T = {
     serverTitle: 'On the server', serverNone: 'This modpack has no server yet.', nobody: 'Nobody is online.',
     playersHidden: 'The server hides who is online.', more: 'and {n} more', nickRule: '3 to 16 letters, numbers or underscore',
     updateFinding: 'Update ready: {changes}. Downloads when you press Play.',
+    'pin.new': 'PIN', 'pin.repeat': 'Repeat PIN',
+    'pin.why': '4 to 6 digits. The launcher asks for it to play, and the server uses it so nobody else can join with your name.',
+    'pin.ask': "{name}'s PIN", 'pin.askSub': 'Type it to play with this account. It is asked once each time you open the launcher.',
+    'pin.setup': 'Create a PIN for {name}', 'pin.setupSub': 'From now on the server protects your name with this PIN: it is registered the first time you join. If you forget it, an admin can reset it.',
+    'pin.ok': 'Play', pinInvalid: 'The PIN must be 4 to 6 digits.', pinMismatch: 'The two PINs do not match.',
+    pinWrong: 'Wrong PIN.', pinWait: 'Too many attempts. Wait a few seconds.', pinTaken: 'That account is already on this PC with another PIN.',
+    pinAlready: 'That account already has a PIN.',
     modNew1: '1 new mod', modNewN: '{n} new mods', modUp1: '1 updated', modUpN: '{n} updated', modRm1: '1 removed', modRmN: '{n} removed', and: 'and',
   },
 };
@@ -404,8 +418,56 @@ $('btn-play').onclick = async () => {
   sfx.play();
   $('bar').classList.remove('hidden');
   const r = await api.play(p.id);
-  if (!r.ok) showError(msg(r.error));
+  if (r.ok) return;
+  $('bar').classList.add('hidden');
+  // cuenta offline sin PIN (de una versión anterior) o bloqueada: se pide y se vuelve a intentar
+  if (r.error === 'pinSetup' || r.error === 'pinLocked') return askPin(r.error === 'pinSetup', () => $('btn-play').click());
+  showError(msg(r.error));
 };
+
+/* ------------------------------------------------------------ PIN */
+const pinField = (id, label, cls = '') =>
+  `<label><span class="field-label">${t(label)}</span><input type="password" id="${id}" class="pin ${cls}" inputmode="numeric" maxlength="6" autocomplete="off"></label>`;
+function pinProblem(a, b) {
+  if (!/^\d{4,6}$/.test(a)) return 'pinInvalid';
+  if (b !== undefined && a !== b) return 'pinMismatch';
+  return null;
+}
+// solo números en los campos de PIN
+document.addEventListener('input', (e) => {
+  if (e.target.classList?.contains('pin')) e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+});
+function askPin(setup, then) {
+  const a = curAcc();
+  if (!a) return;
+  const name = esc(a.name);
+  dialog(setup
+    ? `<h3>${t('pin.setup', { name })}</h3><p class="sub">${t('pin.setupSub')}</p>
+       <div class="pin-row">${pinField('d-pin', 'pin.new')}${pinField('d-pin2', 'pin.repeat')}</div><p class="err" id="d-err"></p>
+       <div class="actions"><button class="btn" id="d-cancel">${t('cancel')}</button><button class="btn primary" id="d-ok">${t('save')}</button></div>`
+    : `<h3>${t('pin.ask', { name })}</h3><p class="sub">${t('pin.askSub')}</p>
+       <input type="password" id="d-pin" class="pin solo" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="PIN"><p class="err" id="d-err"></p>
+       <div class="actions"><button class="btn" id="d-cancel">${t('cancel')}</button><button class="btn primary" id="d-ok">${t('pin.ok')}</button></div>`);
+  $('d-pin').focus();
+  $('d-cancel').onclick = closeDialog;
+  const go = async () => {
+    const bad = pinProblem($('d-pin').value, setup ? $('d-pin2').value : undefined);
+    if (bad) return ($('d-err').textContent = t(bad));
+    $('d-ok').disabled = true;
+    const r = setup ? await api.setPin(a.id, $('d-pin').value) : await api.unlockPin(a.id, $('d-pin').value);
+    $('d-ok').disabled = false;
+    if (!r.ok) {
+      $('d-err').textContent = msg(r.error);
+      $('d-pin').select();
+      return sfx.error();
+    }
+    if (setup) a.hasPin = true;
+    closeDialog();
+    then();
+  };
+  $('d-ok').onclick = go;
+  for (const id of ['d-pin', 'd-pin2']) if ($(id)) $(id).onkeydown = (e) => e.key === 'Enter' && go();
+}
 
 $('btn-kill').onclick = () => {
   dialog(`<h3>${t('kill')}</h3><p class="sub">${t('killSure')}</p>
@@ -438,7 +500,9 @@ $('btn-show-offline').onclick = () => {
 };
 $('offline-form').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await api.loginOffline($('offline-name').value);
+  const bad = pinProblem($('offline-pin').value, $('offline-pin2').value);
+  if (bad) return ($('login-error').textContent = t(bad));
+  const r = await api.loginOffline($('offline-name').value, $('offline-pin').value);
   if (r.ok) await afterLogin();
   else $('login-error').textContent = msg(r.error);
 };
@@ -495,16 +559,20 @@ function openAccountMenu() {
   };
   $('m-off').onclick = () => {
     menu.classList.add('hidden');
-    dialog(`<h3>${t('addOffline')}</h3><input type="text" id="d-nick" maxlength="16" spellcheck="false" placeholder="${t('login.nick')}"><p class="err" id="d-err"></p>
+    dialog(`<h3>${t('addOffline')}</h3><input type="text" id="d-nick" maxlength="16" spellcheck="false" placeholder="${t('login.nick')}">
+      <div class="pin-row">${pinField('d-pin', 'pin.new')}${pinField('d-pin2', 'pin.repeat')}</div>
+      <p class="hint">${t('pin.why')}</p><p class="err" id="d-err"></p>
       <div class="actions"><button class="btn" id="d-cancel">${t('cancel')}</button><button class="btn primary" id="d-ok">${t('add')}</button></div>`);
     $('d-nick').focus();
     $('d-cancel').onclick = closeDialog;
     const go = async () => {
-      const r = await api.loginOffline($('d-nick').value);
+      const bad = pinProblem($('d-pin').value, $('d-pin2').value);
+      if (bad) return ($('d-err').textContent = t(bad));
+      const r = await api.loginOffline($('d-nick').value, $('d-pin').value);
       if (r.ok) { closeDialog(); await afterLogin(); } else $('d-err').textContent = msg(r.error);
     };
     $('d-ok').onclick = go;
-    $('d-nick').onkeydown = (e) => e.key === 'Enter' && go();
+    for (const id of ['d-nick', 'd-pin', 'd-pin2']) $(id).onkeydown = (e) => e.key === 'Enter' && go();
   };
   menu.classList.remove('hidden');
   sfx.open();

@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   openFolder: inv('packs:openFolder'),
   loginMicrosoft: inv('auth:microsoft'),
   loginOffline: inv('auth:offline'),
+  setPin: inv('auth:setPin'),
+  unlockPin: inv('auth:unlock'),
   selectAccount: inv('auth:select'),
   removeAccount: inv('auth:remove'),
   play: inv('game:play'),
