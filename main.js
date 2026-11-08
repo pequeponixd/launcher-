@@ -300,8 +300,13 @@ async function ensureLoader(javaPath, mc, loader) {
 
     const before = new Set(await fsp.readdir(versionsDir));
     await run(javaPath, ['-jar', installer, '--installClient', ROOT]);
+    // Se busca primero el nombre que usa el instalador: si un intento anterior falló a medias, la carpeta ya
+    // existía "antes" y comparar carpetas no encontraba nada, así que reintentar nunca funcionaba
+    const expected = type === 'forge' ? `${mc}-forge-${version}` : `neoforge-${version}`;
     const created = (await fsp.readdir(versionsDir)).filter((d) => !before.has(d) && d !== mc);
-    const name = created.find((d) => d.toLowerCase().includes(type)) || created[0];
+    const name = (await exists(path.join(versionsDir, expected, `${expected}.json`)))
+      ? expected
+      : created.find((d) => d.toLowerCase().includes(type)) || created[0];
     if (!name) throw new Error('El instalador no generó ninguna versión.');
     await fsp.writeFile(marker, name);
     return name;
