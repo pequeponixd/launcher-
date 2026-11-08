@@ -662,7 +662,8 @@ ipcMain.handle('game:play', async (_e, packId) => {
 
     const launcher = new Client();
     const log = fs.createWriteStream(LOG_FILE);
-    launcher.on('debug', (l) => log.write(l + '\n'));
+    // el token de Microsoft va en los argumentos de Java: no debe quedar en un log que se comparte para pedir ayuda
+    launcher.on('debug', (l) => log.write(String(l).replace(/(--accessToken\s+)\S+/g, '$1[oculto]') + '\n'));
     launcher.on('progress', (e) => {
       status('game.download', { type: e.type }, e.total ? (e.task / e.total) * 100 : null);
     });
@@ -711,7 +712,9 @@ ipcMain.handle('game:play', async (_e, packId) => {
         customArgs,
         // cwd = carpeta de la instancia: varios mods (FancyMenu, Konkrete…) leen su config con rutas relativas
         // y sin esto usaban la carpeta raíz del launcher, ignorando la config del modpack
-        overrides: { gameDirectory: gameDir, cwd: gameDir },
+        // maxSockets: los recursos son ~3.600 archivos chicos; con 2 conexiones (lo que trae la librería)
+        // se pierde casi todo el tiempo esperando cada respuesta. Con 8 baja unas 4 veces más rápido.
+        overrides: { gameDirectory: gameDir, cwd: gameDir, maxSockets: 8 },
       })
     );
     if (!proc) throw new Error('Minecraft no pudo iniciarse. Revisa el log.');
