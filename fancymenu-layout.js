@@ -70,7 +70,10 @@ function customButton(name, label, action, value, pos, tex = null, fx = {}) {
     `button_element_executable_block_identifier = ${blockId}`,
     `[executable_action_instance:${actionId}][action_type:${action}] = ${value}`,
     `[executable_block:${blockId}][type:generic] = [executables:${actionId};]`,
-    ...(tex ? [`backgroundnormal = ${asset(tex[0])}`, `backgroundhovered = ${asset(tex[1])}`] : []),
+    // icon: la textura va como icono sobre un botón sin fondo. FancyMenu dibuja el fondo de un botón a su
+    // tamaño real (un botón chico mostraba solo una esquina de la imagen); el icono sí se ajusta al botón
+    ...(tex && fx.icon ? [`iconnormal = ${asset(tex[0])}`, `iconhovered = ${asset(tex[1])}`, 'transparent_background = true'] : []),
+    ...(tex && !fx.icon ? [`backgroundnormal = ${asset(tex[0])}`, `backgroundhovered = ${asset(tex[1])}`] : []),
     ...(fx.hoverSound ? [`hoversound = ${asset(fx.hoverSound)}`] : []),
     ...(fx.tooltip ? [`description = ${fx.tooltip}`] : []),
     ...(fx.clickSound ? [`clicksound = ${asset(fx.clickSound)}`] : []),
@@ -262,7 +265,7 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
       const bh = 10; // alto de cada botón en la escena de 240×135
       const bw = Math.round((bh * t.size[0]) / t.size[1]);
       const adv = { x: `${GW}*27/100-${GH}*${bw / 2}/135`, y: `${GH}*${70 + i * 13}/135`, w: `${GH}*${bw}/135`, h: `${GH}*${bh}/135` };
-      out.push(customButton(name, '', action, value, { anchor: 'top-left', width: 100, height: 16, adv }, t.tex, { ...fx, tooltip }));
+      out.push(customButton(name, '', action, value, { anchor: 'top-left', width: 100, height: 16, adv }, t.tex, { ...fx, tooltip, icon: true }));
     });
   } else {
     if (logoSize) out.push(fittedLogo('logo', logoSize));
