@@ -245,9 +245,9 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
       const w = Math.round((h * logoSize[0]) / logoSize[1]);
       out.push(image('logo', 'logo.png', { anchor: 'top-left', width: 120, height: 58, adv: { x: `${GW}*27/100-${GH}*${w / 2}/135`, y: `${GH}*6/135`, w: `${GH}*${w}/135`, h: `${GH}*${h}/135` } }));
     }
-    actions.forEach(([name, , action, value, tooltip], i) => {
+    // solo los botones que tienen su textura de texto: sin txt-singleplayer.png no hay "Un jugador"
+    actions.filter(([name]) => side[name]).forEach(([name, , action, value, tooltip], i) => {
       const t = side[name];
-      if (!t) return;
       const bh = 10; // alto de cada botón en la escena de 240×135
       const bw = Math.round((bh * t.size[0]) / t.size[1]);
       const adv = { x: `${GW}*27/100-${GH}*${bw / 2}/135`, y: `${GH}*${70 + i * 13}/135`, w: `${GH}*${bw}/135`, h: `${GH}*${bh}/135` };

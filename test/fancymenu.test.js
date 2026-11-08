@@ -136,6 +136,10 @@ test('menú al costado con botones de solo texto', () => {
   assert.match(t, /advanced_width = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*77\/135"/);
   assert.doesNotMatch(t, /copy_client_player/);
   assert.equal((t.match(/{/g) || []).length, (t.match(/}/g) || []).length);
+  // sin la textura de "Un jugador" el botón no está y los demás suben sin dejar hueco
+  const sinUno = buildTitleLayout({ side: { play: tex('play'), options: tex('options'), quit: tex('quit') } });
+  assert.doesNotMatch(sinUno, /select_world_screen/);
+  assert.match(sinUno, /guiheight"\}\*96\/135/); // tercer botón (Salir): 70 + 2 * 13
 });
 
 test('el logo centrado y el de las pantallas de carga respetan la proporción', () => {
