@@ -356,7 +356,7 @@ Object.assign(T.en, {
     setSkin(r.png, r.slim);
   };
   $('wr-copy').onclick = copyFromPlayer;
-  $('wr-player').onkeydown = (e) => e.key === 'Enter' && copyFromPlayer();
+  $('wr-player').onkeydown = (e) => { if (e.key === 'Enter') copyFromPlayer(); };
 
   $('wr-reset').onclick = async () => {
     if (!(await save({ png: null }))) return;
