@@ -198,7 +198,7 @@ const SPLASHES = [
 
 /**
  * side: { play: { tex: [normal, hover], size: [ancho, alto] }, … } texturas con el texto de cada botón
- * (txt-*.png de make-art.py); con side el menú va a la izquierda y el personaje a la derecha.
+ * (txt-*.png de make-art.py); con side el menú va a la izquierda y el fondo ocupa la derecha (sin personaje).
  */
 function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', background = true, logoSize = null, buttons = {}, fx = {}, side = null } = {}) {
   const req = fmId('layout:req');
@@ -238,7 +238,7 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
     ['quit', 'Salir', 'quitgame', '', 'Cierra el juego'],
   ];
   if (side) {
-    // Estilo "menú de evento": logo y botones de solo texto a la izquierda, tu personaje grande a la derecha.
+    // Estilo "menú de evento": logo y botones de solo texto a la izquierda; la derecha queda para el fondo.
     // Todo en proporción a la ventana (escena de 240×135, igual que la intro), así no se encima en ventanas chicas.
     if (logoSize) {
       const h = 58;
@@ -253,7 +253,6 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
       const adv = { x: `${GW}*27/100-${GH}*${bw / 2}/135`, y: `${GH}*${70 + i * 13}/135`, w: `${GH}*${bw}/135`, h: `${GH}*${bh}/135` };
       out.push(customButton(name, '', action, value, { anchor: 'top-left', width: 100, height: 16, adv }, t.tex, { ...fx, tooltip }));
     });
-    if (fx.player) out.push(player('player', { anchor: 'top-left', width: 40, height: 100, adv: { x: `${GW}*60/100`, y: `${GH}*60/135`, w: `${GH}*26/135`, h: `${GH}*62/135` } }));
   } else {
     if (logoSize) out.push(fittedLogo('logo', logoSize));
     if (fx.splashes) out.push(splash('splash'));

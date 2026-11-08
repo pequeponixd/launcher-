@@ -132,9 +132,9 @@ test('menú al costado con botones de solo texto', () => {
   assert.match(t, /\[action_type:opengui\] = select_world_screen/);
   assert.doesNotMatch(t, /hoverlabel = »/); // el texto viene en la textura
   assert.doesNotMatch(t, /island\.png/);
-  // logo 4:3 → 77 de ancho para 58 de alto; personaje a la derecha
+  // logo 4:3 → 77 de ancho para 58 de alto; sin personaje (la derecha es del fondo)
   assert.match(t, /advanced_width = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*77\/135"/);
-  assert.match(t, /advanced_posx = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiwidth"\}\*60\/100"/);
+  assert.doesNotMatch(t, /copy_client_player/);
   assert.equal((t.match(/{/g) || []).length, (t.match(/}/g) || []).length);
 });
 
