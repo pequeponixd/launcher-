@@ -70,7 +70,10 @@ function customButton(name, label, action, value, pos, tex = null, fx = {}) {
     `button_element_executable_block_identifier = ${blockId}`,
     `[executable_action_instance:${actionId}][action_type:${action}] = ${value}`,
     `[executable_block:${blockId}][type:generic] = [executables:${actionId};]`,
-    ...(tex ? [`backgroundnormal = ${asset(tex[0])}`, `backgroundhovered = ${asset(tex[1])}`] : []),
+    // icon: la textura va como icono sobre un botón sin fondo. FancyMenu dibuja el fondo de un botón a su
+    // tamaño real (un botón chico mostraba solo una esquina de la imagen); el icono sí se ajusta al botón
+    ...(tex && fx.icon ? [`iconnormal = ${asset(tex[0])}`, `iconhovered = ${asset(tex[1])}`, 'transparent_background = true'] : []),
+    ...(tex && !fx.icon ? [`backgroundnormal = ${asset(tex[0])}`, `backgroundhovered = ${asset(tex[1])}`] : []),
     ...(fx.hoverSound ? [`hoversound = ${asset(fx.hoverSound)}`] : []),
     ...(fx.tooltip ? [`description = ${fx.tooltip}`] : []),
     ...(fx.clickSound ? [`clicksound = ${asset(fx.clickSound)}`] : []),
@@ -106,10 +109,20 @@ const hiddenDeep = (type) =>
 // El logo del menú ocupa en pantalla lo mismo que al final de la intro (tools/make-art.py, INTRO_LOGO):
 // 136×22 de una escena 240×135 escalada al alto de la ventana, centrado y a 18 px de arriba.
 const INTRO_LOGO = { sceneH: 135, w: 136, h: 22, top: 18 };
+// Más alto que esto tapa los botones, que empiezan justo bajo la mitad de la pantalla
+const LOGO_MAX_H = 36;
+
+/** Tamaño y altura del logo en la escena, sin deformarlo: un logo casi cuadrado se achica y sube. */
+function logoBox(logoSize = null) {
+  const L = INTRO_LOGO;
+  const ratio = logoSize ? logoSize[1] / logoSize[0] : L.h / L.w;
+  if (L.w * ratio <= LOGO_MAX_H) return { w: L.w, h: L.w * ratio, top: L.top };
+  return { w: LOGO_MAX_H / ratio, h: LOGO_MAX_H, top: 10 };
+}
 
 function fittedLogo(name, logoSize = null) {
   const L = INTRO_LOGO;
-  const h = logoSize ? (L.w * logoSize[1]) / logoSize[0] : L.h; // sin deformar logos con otra proporción
+  const { w, h, top } = logoBox(logoSize);
   return block('element', [
     `source = ${asset('logo.png')}`,
     'repeat_texture = false',
@@ -117,17 +130,18 @@ function fittedLogo(name, logoSize = null) {
     'nine_slice_texture_border_x = 5',
     'nine_slice_texture_border_y = 5',
     'element_type = image',
-    `advanced_width = ${calc(`${GH}*${L.w}/${L.sceneH}`)}`,
+    `advanced_width = ${calc(`${GH}*${Math.round(w)}/${L.sceneH}`)}`,
     `advanced_height = ${calc(`${GH}*${Math.round(h)}/${L.sceneH}`)}`,
-    `advanced_posx = ${calc(`${GW}/2-${GH}*${L.w / 2}/${L.sceneH}`)}`,
-    `advanced_posy = ${calc(`${GH}*${L.top}/${L.sceneH}`)}`,
+    `advanced_posx = ${calc(`${GW}/2-${GH}*${Math.round(w) / 2}/${L.sceneH}`)}`,
+    `advanced_posy = ${calc(`${GH}*${top}/${L.sceneH}`)}`,
     ...placement(name, { anchor: 'top-left', x: 0, y: 0, width: 220, height: 36 }),
   ]);
 }
 
 /** Frase amarilla que rebota al lado del logo, como en Minecraft (sale al azar de splashes.txt). */
-function splash(name) {
+function splash(name, logoSize = null) {
   const L = INTRO_LOGO;
+  const { w, h, top } = logoBox(logoSize);
   return block('element', [
     `source = ${asset('splashes.txt')}`,
     'source_mode = text_file',
@@ -139,8 +153,8 @@ function splash(name) {
     'bouncing = true',
     'element_type = splash_text',
     // esquina de abajo a la derecha del logo
-    `advanced_posx = ${calc(`${GW}/2+${GH}*${L.w / 2 - 50}/${L.sceneH}`)}`,
-    `advanced_posy = ${calc(`${GH}*${L.top + L.h - 2}/${L.sceneH}`)}`,
+    `advanced_posx = ${calc(`${GW}/2+${GH}*${Math.round(w / 2 - 50)}/${L.sceneH}`)}`,
+    `advanced_posy = ${calc(`${GH}*${Math.round(top + h - 2)}/${L.sceneH}`)}`,
     ...placement(name, { anchor: 'top-left', x: 0, y: 0, width: 100, height: 20 }),
   ]);
 }
@@ -251,11 +265,11 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
       const bh = 10; // alto de cada botón en la escena de 240×135
       const bw = Math.round((bh * t.size[0]) / t.size[1]);
       const adv = { x: `${GW}*27/100-${GH}*${bw / 2}/135`, y: `${GH}*${70 + i * 13}/135`, w: `${GH}*${bw}/135`, h: `${GH}*${bh}/135` };
-      out.push(customButton(name, '', action, value, { anchor: 'top-left', width: 100, height: 16, adv }, t.tex, { ...fx, tooltip }));
+      out.push(customButton(name, '', action, value, { anchor: 'top-left', width: 100, height: 16, adv }, t.tex, { ...fx, tooltip, icon: true }));
     });
   } else {
     if (logoSize) out.push(fittedLogo('logo', logoSize));
-    if (fx.splashes) out.push(splash('splash'));
+    if (fx.splashes) out.push(splash('splash', logoSize));
     if (fx.player) {
       // el personaje parado sobre una isla flotante, con una luz suave detrás (island.png y glow.png de make-art.py)
       const P = { x: -158, y: -52, width: 34, height: 80 };
@@ -379,6 +393,8 @@ function setOption(file, key, value) {
   return true;
 }
 
+const modsHave = (packDir, re) => fs.existsSync(path.join(packDir, 'mods')) && fs.readdirSync(path.join(packDir, 'mods')).some((f) => re.test(f));
+
 // Ancho y alto de un PNG leyendo su cabecera (sin dependencias)
 function pngSize(file) {
   const b = fs.readFileSync(file);
@@ -391,6 +407,14 @@ function pngSize(file) {
  * escribe el layout y activa la personalización del menú principal. Devuelve las rutas que cambió.
  */
 function installMenu(packDir, { server = '', label } = {}) {
+  // el texto del botón principal sale del modpack: "Jugar en Manhunt" si tiene servidor, si no "Jugar"
+  if (!label) {
+    let name = '';
+    try {
+      name = JSON.parse(fs.readFileSync(path.join(packDir, 'pack.json'), 'utf8')).name || '';
+    } catch {}
+    label = server && name ? `Jugar en ${name}` : 'Jugar';
+  }
   const fmDir = path.join(packDir, 'config', 'fancymenu');
   const assets = path.join(fmDir, 'assets');
   const custom = path.join(fmDir, 'customization');
@@ -429,7 +453,8 @@ function installMenu(packDir, { server = '', label } = {}) {
     hoverSound: has('hover.wav'),
     clickSound: has('click.wav'),
     splashes: has('splashes.txt'),
-    player: true,
+    // el personaje necesita Fancy Entity Renderer: sin ese mod FancyMenu no lo dibuja
+    player: modsHave(packDir, /^fancy-entity-renderer/i),
     island: has('island.png'),
     glow: has('glow.png'),
   };
@@ -450,7 +475,7 @@ function installMenu(packDir, { server = '', label } = {}) {
     screens[id] = cls;
   }
   // pantalla de carga del juego, solo si el modpack trae Drippy Loading Screen
-  const hasDrippy = fs.existsSync(path.join(packDir, 'mods')) && fs.readdirSync(path.join(packDir, 'mods')).some((f) => /^drippyloadingscreen/i.test(f));
+  const hasDrippy = modsHave(packDir, /^drippyloadingscreen/i);
   if (hasDrippy && hasBg && has('loading-bar.png') && has('loading-bar-bg.png')) {
     write('cachusafio_carga.txt', buildLoadingLayout({ background: 'background.png', logoSize }));
     screens.drippy = 'de.keksuccino.drippyloadingscreen.customization.DrippyOverlayScreen';

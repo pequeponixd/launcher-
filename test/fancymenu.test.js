@@ -128,7 +128,7 @@ test('installMenu esconde la barra del editor y configura la carga temprana de D
 test('menú al costado con botones de solo texto', () => {
   const tex = (n) => ({ tex: [`txt-${n}.png`, `txt-${n}-hover.png`], size: [120, 20] });
   const t = buildTitleLayout({ logoSize: [400, 300], side: { play: tex('play'), singleplayer: tex('singleplayer'), options: tex('options'), quit: tex('quit') }, fx: { player: true, island: 'island.png' } });
-  assert.match(t, /backgroundnormal = \[source:local\]\/config\/fancymenu\/assets\/txt-play\.png/);
+  assert.match(t, /iconnormal = \[source:local\]\/config\/fancymenu\/assets\/txt-play\.png/);
   assert.match(t, /\[action_type:opengui\] = select_world_screen/);
   assert.doesNotMatch(t, /hoverlabel = »/); // el texto viene en la textura
   assert.doesNotMatch(t, /island\.png/);
@@ -148,3 +148,18 @@ test('el logo centrado y el de las pantallas de carga respetan la proporción', 
   const s = buildScreenLayout('connect_screen', { logoSize: [400, 300] }); // alto: tope de 60
   assert.match(s, /width = 80\n  height = 60/);
 });
+
+test('un logo casi cuadrado se achica para no tapar los botones', () => {
+  const t = buildTitleLayout({ logoSize: [698, 430], fx: { splashes: 'splashes.txt' } });
+  assert.match(t, /guiheight"\}\*36\/135/); // alto tope del logo
+  assert.doesNotMatch(t, /guiheight"\}\*84\/135/); // sin tope medía 84 de 135: llegaba a los botones
+});
+
+test('los botones de solo texto usan la imagen como icono sobre un botón sin fondo', () => {
+  const t = buildTitleLayout({ side: { play: { tex: ['txt-play.png', 'txt-play-hover.png'], size: [150, 60] } } });
+  // como fondo, FancyMenu la dibujaba a tamaño real y solo se veía una esquina (sin las letras)
+  assert.match(t, /iconnormal = \[source:local\]\/config\/fancymenu\/assets\/txt-play\.png/);
+  assert.match(t, /transparent_background = true/);
+  assert.doesNotMatch(t, /backgroundnormal = [^\n]*txt-play/);
+});
+
