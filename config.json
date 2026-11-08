@@ -8,6 +8,11 @@
       "id": "cachusafio",
       "name": "Cachusafio",
       "manifestUrl": "https://raw.githubusercontent.com/pequeponixd/modpack-cachusafio/main/Modpack/manifest.json"
+    },
+    {
+      "id": "manhunt",
+      "name": "Manhunt",
+      "manifestUrl": "https://raw.githubusercontent.com/pequeponixd/modpack-manhunt/main/Modpack/manifest.json"
     }
   ]
 }
