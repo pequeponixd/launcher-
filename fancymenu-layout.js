@@ -19,11 +19,17 @@ function fmId(name) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}-${STAMP}`;
 }
 
+const calc = (expr) => `{"placeholder":"calc","values":{"expression":"${expr}","decimal":"false"}}`;
+const GW = '{"placeholder":"guiwidth"}';
+const GH = '{"placeholder":"guiheight"}';
+
 const block = (type, lines) => `${type} {\n${lines.map((l) => '  ' + l).join('\n')}\n}\n`;
 
-function placement(name, { anchor = 'mid-centered', x = 0, y = 0, width = 200, height = 20 }) {
+function placement(name, { anchor = 'mid-centered', x = 0, y = 0, width = 200, height = 20, adv = null }) {
   const req = fmId(name + ':req');
   return [
+    // adv: { x, y, w, h } expresiones de calc con guiwidth/guiheight, para ubicar en proporción a la ventana
+    ...(adv ? Object.entries({ x: 'advanced_posx', y: 'advanced_posy', w: 'advanced_width', h: 'advanced_height' }).filter(([k]) => adv[k]).map(([k, key]) => `${key} = ${calc(adv[k])}`) : []),
     `instance_identifier = ${/^(mc_|deep:|forge_|modmenu_)/.test(name) ? name : fmId(name)}`,
     'appearance_delay = no_delay',
     'appearance_delay_seconds = 1.0',
@@ -70,8 +76,8 @@ function customButton(name, label, action, value, pos, tex = null, fx = {}) {
     ...(fx.clickSound ? [`clicksound = ${asset(fx.clickSound)}`] : []),
     ...buttonCommon,
     `label = ${label}`,
-    // resalte al pasar el mouse: el texto queda entre flechas
-    `hoverlabel = » ${label} «`,
+    // resalte al pasar el mouse: el texto queda entre flechas (sin texto, la textura ya trae las letras)
+    `hoverlabel = ${label ? `» ${label} «` : ''}`,
     'element_type = custom_button',
     ...placement(name, pos),
   ]);
@@ -100,12 +106,10 @@ const hiddenDeep = (type) =>
 // El logo del menú ocupa en pantalla lo mismo que al final de la intro (tools/make-art.py, INTRO_LOGO):
 // 136×22 de una escena 240×135 escalada al alto de la ventana, centrado y a 18 px de arriba.
 const INTRO_LOGO = { sceneH: 135, w: 136, h: 22, top: 18 };
-const calc = (expr) => `{"placeholder":"calc","values":{"expression":"${expr}","decimal":"false"}}`;
-const GW = '{"placeholder":"guiwidth"}';
-const GH = '{"placeholder":"guiheight"}';
 
-function fittedLogo(name) {
+function fittedLogo(name, logoSize = null) {
   const L = INTRO_LOGO;
+  const h = logoSize ? (L.w * logoSize[1]) / logoSize[0] : L.h; // sin deformar logos con otra proporción
   return block('element', [
     `source = ${asset('logo.png')}`,
     'repeat_texture = false',
@@ -114,7 +118,7 @@ function fittedLogo(name) {
     'nine_slice_texture_border_y = 5',
     'element_type = image',
     `advanced_width = ${calc(`${GH}*${L.w}/${L.sceneH}`)}`,
-    `advanced_height = ${calc(`${GH}*${L.h}/${L.sceneH}`)}`,
+    `advanced_height = ${calc(`${GH}*${Math.round(h)}/${L.sceneH}`)}`,
     `advanced_posx = ${calc(`${GW}/2-${GH}*${L.w / 2}/${L.sceneH}`)}`,
     `advanced_posy = ${calc(`${GH}*${L.top}/${L.sceneH}`)}`,
     ...placement(name, { anchor: 'top-left', x: 0, y: 0, width: 220, height: 36 }),
@@ -192,7 +196,11 @@ const SPLASHES = [
   '¡La cabaña tiene la luz prendida!',
 ];
 
-function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', background = true, logoSize = null, buttons = {}, fx = {} } = {}) {
+/**
+ * side: { play: { tex: [normal, hover], size: [ancho, alto] }, … } texturas con el texto de cada botón
+ * (txt-*.png de make-art.py); con side el menú va a la izquierda y el fondo ocupa la derecha (sin personaje).
+ */
+function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', background = true, logoSize = null, buttons = {}, fx = {}, side = null } = {}) {
   const req = fmId('layout:req');
   const out = [
     'type = fancymenu_layout\n',
@@ -219,25 +227,51 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
       block('customization', ['action = backgroundoptions', 'keepaspectratio = true'])
     );
   }
-  if (logoSize) out.push(fittedLogo('logo'));
-  if (fx.splashes) out.push(splash('splash'));
-  if (fx.player) {
-    // el personaje parado sobre una isla flotante, con una luz suave detrás (island.png y glow.png de make-art.py)
-    const P = { x: -158, y: -52, width: 34, height: 80 };
-    const cx = P.x + P.width / 2;
-    if (fx.glow) out.push(image('player:glow', fx.glow, { x: cx - 45, y: P.y - 14, width: 90, height: 110 }));
-    // la superficie de pasto está 4 px por debajo del borde de la imagen: ahí apoyan los pies
-    if (fx.island) out.push(image('player:island', fx.island, { x: cx - 32, y: P.y + P.height - 4, width: 64, height: 40 }));
-    out.push(player('player', { anchor: 'mid-centered', ...P }));
-  }
   const srv = String(server || '').trim();
-  out.push(
+  const actions = [
     srv
-      ? customButton('play', label, 'joinserver', srv, { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: `Entra directo a ${srv}` })
-      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: 'Abre la lista de servidores' }),
-    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: -100, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Video, sonido, controles e idioma' }),
-    customButton('quit', 'Salir', 'quitgame', '', { x: 2, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Cierra el juego' })
-  );
+      ? ['play', label, 'joinserver', srv, `Entra directo a ${srv}`]
+      : ['play', label, 'opengui', 'join_multiplayer_screen', 'Abre la lista de servidores'],
+    // sin servidor fijo también hace falta poder crear un mundo propio (Un jugador / LAN)
+    ...(srv ? [] : [['singleplayer', 'Un jugador', 'opengui', 'select_world_screen', 'Tus mundos (también para abrir en LAN)']]),
+    ['options', 'Opciones', 'opengui', 'options_screen', 'Video, sonido, controles e idioma'],
+    ['quit', 'Salir', 'quitgame', '', 'Cierra el juego'],
+  ];
+  if (side) {
+    // Estilo "menú de evento": logo y botones de solo texto a la izquierda; la derecha queda para el fondo.
+    // Todo en proporción a la ventana (escena de 240×135, igual que la intro), así no se encima en ventanas chicas.
+    if (logoSize) {
+      const h = 58;
+      const w = Math.round((h * logoSize[0]) / logoSize[1]);
+      out.push(image('logo', 'logo.png', { anchor: 'top-left', width: 120, height: 58, adv: { x: `${GW}*27/100-${GH}*${w / 2}/135`, y: `${GH}*6/135`, w: `${GH}*${w}/135`, h: `${GH}*${h}/135` } }));
+    }
+    // solo los botones que tienen su textura de texto: sin txt-singleplayer.png no hay "Un jugador"
+    actions.filter(([name]) => side[name]).forEach(([name, , action, value, tooltip], i) => {
+      const t = side[name];
+      const bh = 10; // alto de cada botón en la escena de 240×135
+      const bw = Math.round((bh * t.size[0]) / t.size[1]);
+      const adv = { x: `${GW}*27/100-${GH}*${bw / 2}/135`, y: `${GH}*${70 + i * 13}/135`, w: `${GH}*${bw}/135`, h: `${GH}*${bh}/135` };
+      out.push(customButton(name, '', action, value, { anchor: 'top-left', width: 100, height: 16, adv }, t.tex, { ...fx, tooltip }));
+    });
+  } else {
+    if (logoSize) out.push(fittedLogo('logo', logoSize));
+    if (fx.splashes) out.push(splash('splash'));
+    if (fx.player) {
+      // el personaje parado sobre una isla flotante, con una luz suave detrás (island.png y glow.png de make-art.py)
+      const P = { x: -158, y: -52, width: 34, height: 80 };
+      const cx = P.x + P.width / 2;
+      if (fx.glow) out.push(image('player:glow', fx.glow, { x: cx - 45, y: P.y - 14, width: 90, height: 110 }));
+      // la superficie de pasto está 4 px por debajo del borde de la imagen: ahí apoyan los pies
+      if (fx.island) out.push(image('player:island', fx.island, { x: cx - 32, y: P.y + P.height - 4, width: 64, height: 40 }));
+      out.push(player('player', { anchor: 'mid-centered', ...P }));
+    }
+    const pos = srv
+      ? { play: { x: -100, y: -24, width: 200, height: 24 }, options: { x: -100, y: 6, width: 98, height: 20 }, quit: { x: 2, y: 6, width: 98, height: 20 } }
+      : { play: { x: -100, y: -24, width: 200, height: 24 }, singleplayer: { x: -100, y: 6, width: 98, height: 20 }, options: { x: 2, y: 6, width: 98, height: 20 }, quit: { x: -49, y: 30, width: 98, height: 20 } };
+    for (const [name, text, action, value, tooltip] of actions) {
+      out.push(customButton(name, text, action, value, pos[name], name === 'play' ? buttons.play : buttons.small, { ...fx, tooltip }));
+    }
+  }
   for (const b of ['singleplayer', 'multiplayer', 'realms', 'options', 'quit', 'language', 'accessibility']) {
     out.push(hiddenVanillaButton(`mc_titlescreen_${b}_button`));
   }
@@ -275,10 +309,12 @@ function layoutHeader(identifier, background) {
   return out;
 }
 
-function logoAt(id, logoSize, pos) {
+function logoAt(id, logoSize, { maxW, maxH, y, bottom, anchor }) {
   if (!logoSize) return [];
-  const w = pos.width || 200;
-  return [image(id, 'logo.png', { ...pos, width: w, height: Math.round((w * logoSize[1]) / logoSize[0]) })];
+  const k = Math.min(maxW / logoSize[0], maxH / logoSize[1]);
+  const w = Math.round(logoSize[0] * k);
+  const h = Math.round(logoSize[1] * k);
+  return [image(id, 'logo.png', { anchor, x: -Math.round(w / 2), y: bottom != null ? bottom - h : y, width: w, height: h })];
 }
 
 // Pantallas mientras se entra a un servidor o a un mundo: mismo fondo y el logo arriba.
@@ -292,7 +328,7 @@ const SCREENS = {
 };
 
 function buildScreenLayout(identifier, { background = 'background.png', logoSize = null } = {}) {
-  return [...layoutHeader(identifier, background), ...logoAt('logo:' + identifier, logoSize, { anchor: 'top-centered', x: -90, y: 18, width: 180 })].join('\n');
+  return [...layoutHeader(identifier, background), ...logoAt('logo:' + identifier, logoSize, { anchor: 'top-centered', y: 18, maxW: 180, maxH: 60 })].join('\n');
 }
 
 /** Pantalla de carga del juego (Drippy Loading Screen): fondo, logo y barra propia en vez de Mojang. */
@@ -324,7 +360,7 @@ function buildLoadingLayout({ background = 'background.png', logoSize = null } =
   ]);
   return [
     ...layoutHeader('drippy_loading_overlay', background),
-    ...logoAt('loading:logo', logoSize, { anchor: 'mid-centered', x: -120, y: -40, width: 240 }),
+    ...logoAt('loading:logo', logoSize, { anchor: 'mid-centered', bottom: -1, maxW: 240, maxH: 90 }),
     bar,
     hideVanilla('mojang_logo'),
     hideVanilla('progress_bar'),
@@ -383,6 +419,12 @@ function installMenu(packDir, { server = '', label } = {}) {
   const pair = (a, b) => (fs.existsSync(path.join(assets, a)) && fs.existsSync(path.join(assets, b)) ? [a, b] : null);
   const buttons = { play: pair('btn-play.png', 'btn-play-hover.png'), small: pair('btn.png', 'btn-hover.png') };
   const has = (f) => (fs.existsSync(path.join(assets, f)) ? f : undefined);
+  // botones de solo texto (txt-play.png, txt-play-hover.png…): menú al costado, estilo evento
+  const side = has('txt-play.png') ? {} : null;
+  for (const n of side ? ['play', 'singleplayer', 'options', 'quit'] : []) {
+    const tex = pair(`txt-${n}.png`, `txt-${n}-hover.png`);
+    if (tex) side[n] = { tex, size: pngSize(path.join(assets, tex[0])) };
+  }
   const fx = {
     hoverSound: has('hover.wav'),
     clickSound: has('click.wav'),
@@ -401,7 +443,7 @@ function installMenu(packDir, { server = '', label } = {}) {
       changed.push(file);
     }
   };
-  write(LAYOUT_FILE, buildTitleLayout({ server, label, background, logoSize, buttons, fx }));
+  write(LAYOUT_FILE, buildTitleLayout({ server, label, background, logoSize, buttons, fx, side }));
   const screens = { title: 'net.minecraft.client.gui.screens.TitleScreen' };
   for (const [id, cls] of Object.entries(SCREENS)) {
     write(`cachusafio_${id}.txt`, buildScreenLayout(id, { background: background || undefined, logoSize }));
@@ -440,12 +482,33 @@ function installMenu(packDir, { server = '', label } = {}) {
     if (any) changed.push(path.join(fmDir, 'options.txt'));
   }
 
-  // animación de entrada al abrir el juego
+  // setOption solo cambia claves que ya existen: el options.txt lo crea FancyMenu al abrir el juego una vez
   const fmOptions = path.join(fmDir, 'options.txt');
-  if (has('intro.apng')) {
-    const a = setOption(fmOptions, 'game_intro_animation_name', asset('intro.apng'));
-    const b = setOption(fmOptions, 'custom_game_intro_skip_text', 'Presiona cualquier tecla para saltar');
-    if (a || b) changed.push(fmOptions);
+  if (!fs.existsSync(fmOptions)) {
+    console.warn(`Falta ${fmOptions}: abre el juego una vez con FancyMenu, copia ese archivo al modpack y vuelve a correr esto (si no, no hay intro ni botones globales)`);
+  }
+  const fmOpts = [
+    // sin esto los jugadores ven la barra del editor de FancyMenu arriba del menú
+    ['show_customization_overlay', 'false'],
+    ...(has('intro.apng') ? [['game_intro_animation_name', asset('intro.apng')], ['custom_game_intro_skip_text', 'Presiona cualquier tecla para saltar']] : []),
+    ...(has('click.wav') ? [['global_button_click_sound', asset('click.wav')]] : []),
+  ];
+  let anyOpt = false;
+  for (const [k, v] of fmOpts) anyOpt = setOption(fmOptions, k, v) || anyOpt;
+  if (anyOpt) changed.push(fmOptions);
+
+  // pantalla de carga temprana de Drippy (antes de que cargue FancyMenu): mismas imágenes
+  const drippyOptions = path.join(packDir, 'config', 'drippyloadingscreen', 'options.txt');
+  if (hasDrippy && hasBg) {
+    const d = (f) => `/config/fancymenu/assets/${f}`;
+    const o = [
+      ['early_loading_background_texture_path', d('background.png')],
+      ...(has('loading-bar.png') && has('loading-bar-bg.png') ? [['early_loading_bar_progress_texture_path', d('loading-bar.png')], ['early_loading_bar_background_texture_path', d('loading-bar-bg.png')], ['early_loading_bar_width', '400'], ['early_loading_bar_height', '20']] : []), // 400x20: misma proporción que loading-bar.png (200x10)
+      ...(logoSize ? [['early_loading_logo_texture_path', d('logo.png')], ['early_loading_logo_width', '480'], ['early_loading_logo_height', String(Math.round((480 * logoSize[1]) / logoSize[0]))]] : []),
+    ];
+    let any = false;
+    for (const [k, v] of o) any = setOption(drippyOptions, k, v) || any;
+    if (any) changed.push(drippyOptions);
   }
 
   // FancyMenu solo aplica layouts a las pantallas que están en esta lista

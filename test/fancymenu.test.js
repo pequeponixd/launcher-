@@ -19,6 +19,9 @@ test('sin IP el botón abre la lista de servidores', () => {
   const t = buildTitleLayout({});
   assert.doesNotMatch(t, /joinserver/);
   assert.match(t, /\[action_type:opengui\] = join_multiplayer_screen/);
+  // sin servidor fijo hay que poder entrar a un mundo propio; con servidor no hace falta
+  assert.match(t, /\[action_type:opengui\] = select_world_screen/);
+  assert.doesNotMatch(buildTitleLayout({ server: 'x' }), /select_world_screen/);
 });
 
 test('cada bloque de acciones apunta a una acción que existe y las llaves cierran', () => {
@@ -96,4 +99,52 @@ test('pantalla de carga de Drippy, intro y opciones', () => {
   assert.equal(setOption(f, 'game_intro_animation_name', '[source:local]/a.apng'), true);
   assert.match(fs.readFileSync(f, 'utf8'), /S:game_intro_animation_name = '\[source:local\]\/a\.apng';/);
   assert.equal(setOption(f, 'no_existe', 'x'), false);
+});
+
+test('installMenu esconde la barra del editor y configura la carga temprana de Drippy', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fmo-'));
+  const png = Buffer.alloc(33);
+  png.write('\x89PNG\r\n\x1a\n', 0, 'binary');
+  png.writeUInt32BE(1000, 16);
+  png.writeUInt32BE(250, 20);
+  fs.writeFileSync(path.join(dir, 'logo.png'), png);
+  fs.writeFileSync(path.join(dir, 'background.png'), png);
+  fs.mkdirSync(path.join(dir, 'mods'));
+  fs.writeFileSync(path.join(dir, 'mods', 'drippyloadingscreen_fabric_3.1.5.jar'), '');
+  const fm = path.join(dir, 'config', 'fancymenu');
+  const dr = path.join(dir, 'config', 'drippyloadingscreen');
+  fs.mkdirSync(fm, { recursive: true });
+  fs.mkdirSync(dr, { recursive: true });
+  fs.writeFileSync(path.join(fm, 'options.txt'), "B:show_customization_overlay = 'true';\n");
+  fs.writeFileSync(path.join(dr, 'options.txt'), "S:early_loading_logo_texture_path = '/x.png';\nI:early_loading_logo_height = '120';\nS:early_loading_background_texture_path = '/x.png';\n");
+  installMenu(dir, {});
+  assert.match(fs.readFileSync(path.join(fm, 'options.txt'), 'utf8'), /show_customization_overlay = 'false'/);
+  const d = fs.readFileSync(path.join(dr, 'options.txt'), 'utf8');
+  assert.match(d, /early_loading_logo_texture_path = '\/config\/fancymenu\/assets\/logo\.png'/);
+  assert.match(d, /early_loading_logo_height = '120'/); // 480 * 250 / 1000
+  assert.match(d, /early_loading_background_texture_path = '\/config\/fancymenu\/assets\/background\.png'/);
+});
+
+test('menú al costado con botones de solo texto', () => {
+  const tex = (n) => ({ tex: [`txt-${n}.png`, `txt-${n}-hover.png`], size: [120, 20] });
+  const t = buildTitleLayout({ logoSize: [400, 300], side: { play: tex('play'), singleplayer: tex('singleplayer'), options: tex('options'), quit: tex('quit') }, fx: { player: true, island: 'island.png' } });
+  assert.match(t, /backgroundnormal = \[source:local\]\/config\/fancymenu\/assets\/txt-play\.png/);
+  assert.match(t, /\[action_type:opengui\] = select_world_screen/);
+  assert.doesNotMatch(t, /hoverlabel = »/); // el texto viene en la textura
+  assert.doesNotMatch(t, /island\.png/);
+  // logo 4:3 → 77 de ancho para 58 de alto; sin personaje (la derecha es del fondo)
+  assert.match(t, /advanced_width = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*77\/135"/);
+  assert.doesNotMatch(t, /copy_client_player/);
+  assert.equal((t.match(/{/g) || []).length, (t.match(/}/g) || []).length);
+  // sin la textura de "Un jugador" el botón no está y los demás suben sin dejar hueco
+  const sinUno = buildTitleLayout({ side: { play: tex('play'), options: tex('options'), quit: tex('quit') } });
+  assert.doesNotMatch(sinUno, /select_world_screen/);
+  assert.match(sinUno, /guiheight"\}\*96\/135/); // tercer botón (Salir): 70 + 2 * 13
+});
+
+test('el logo centrado y el de las pantallas de carga respetan la proporción', () => {
+  const { buildScreenLayout } = require('../fancymenu-layout');
+  assert.match(buildTitleLayout({ logoSize: [400, 100] }), /advanced_height = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*34\/135"/);
+  const s = buildScreenLayout('connect_screen', { logoSize: [400, 300] }); // alto: tope de 60
+  assert.match(s, /width = 80\n  height = 60/);
 });
