@@ -234,9 +234,13 @@ function buildTitleLayout({ server = '', label = 'Jugar en Cachusafio', backgrou
   out.push(
     srv
       ? customButton('play', label, 'joinserver', srv, { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: `Entra directo a ${srv}` })
-      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: 'Abre la lista de servidores' }),
-    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: -100, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Video, sonido, controles e idioma' }),
-    customButton('quit', 'Salir', 'quitgame', '', { x: 2, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Cierra el juego' })
+      : customButton('play', label, 'opengui', 'join_multiplayer_screen', { x: -100, y: -24, width: 200, height: 24 }, buttons.play, { ...fx, tooltip: 'Abre la lista de servidores' })
+  );
+  // sin servidor fijo también hace falta poder crear un mundo propio (Un jugador / LAN)
+  if (!srv) out.push(customButton('singleplayer', 'Un jugador', 'opengui', 'select_world_screen', { x: -100, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Tus mundos (también para abrir en LAN)' }));
+  out.push(
+    customButton('options', 'Opciones', 'opengui', 'options_screen', { x: srv ? -100 : 2, y: 6, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Video, sonido, controles e idioma' }),
+    customButton('quit', 'Salir', 'quitgame', '', srv ? { x: 2, y: 6, width: 98, height: 20 } : { x: -49, y: 30, width: 98, height: 20 }, buttons.small, { ...fx, tooltip: 'Cierra el juego' })
   );
   for (const b of ['singleplayer', 'multiplayer', 'realms', 'options', 'quit', 'language', 'accessibility']) {
     out.push(hiddenVanillaButton(`mc_titlescreen_${b}_button`));
@@ -440,12 +444,33 @@ function installMenu(packDir, { server = '', label } = {}) {
     if (any) changed.push(path.join(fmDir, 'options.txt'));
   }
 
-  // animación de entrada al abrir el juego
+  // setOption solo cambia claves que ya existen: el options.txt lo crea FancyMenu al abrir el juego una vez
   const fmOptions = path.join(fmDir, 'options.txt');
-  if (has('intro.apng')) {
-    const a = setOption(fmOptions, 'game_intro_animation_name', asset('intro.apng'));
-    const b = setOption(fmOptions, 'custom_game_intro_skip_text', 'Presiona cualquier tecla para saltar');
-    if (a || b) changed.push(fmOptions);
+  if (!fs.existsSync(fmOptions)) {
+    console.warn(`Falta ${fmOptions}: abre el juego una vez con FancyMenu, copia ese archivo al modpack y vuelve a correr esto (si no, no hay intro ni botones globales)`);
+  }
+  const fmOpts = [
+    // sin esto los jugadores ven la barra del editor de FancyMenu arriba del menú
+    ['show_customization_overlay', 'false'],
+    ...(has('intro.apng') ? [['game_intro_animation_name', asset('intro.apng')], ['custom_game_intro_skip_text', 'Presiona cualquier tecla para saltar']] : []),
+    ...(has('click.wav') ? [['global_button_click_sound', asset('click.wav')]] : []),
+  ];
+  let anyOpt = false;
+  for (const [k, v] of fmOpts) anyOpt = setOption(fmOptions, k, v) || anyOpt;
+  if (anyOpt) changed.push(fmOptions);
+
+  // pantalla de carga temprana de Drippy (antes de que cargue FancyMenu): mismas imágenes
+  const drippyOptions = path.join(packDir, 'config', 'drippyloadingscreen', 'options.txt');
+  if (hasDrippy && hasBg) {
+    const d = (f) => `/config/fancymenu/assets/${f}`;
+    const o = [
+      ['early_loading_background_texture_path', d('background.png')],
+      ...(has('loading-bar.png') && has('loading-bar-bg.png') ? [['early_loading_bar_progress_texture_path', d('loading-bar.png')], ['early_loading_bar_background_texture_path', d('loading-bar-bg.png')], ['early_loading_bar_width', '400'], ['early_loading_bar_height', '20']] : []), // 400x20: misma proporción que loading-bar.png (200x10)
+      ...(logoSize ? [['early_loading_logo_texture_path', d('logo.png')], ['early_loading_logo_width', '480'], ['early_loading_logo_height', String(Math.round((480 * logoSize[1]) / logoSize[0]))]] : []),
+    ];
+    let any = false;
+    for (const [k, v] of o) any = setOption(drippyOptions, k, v) || any;
+    if (any) changed.push(drippyOptions);
   }
 
   // FancyMenu solo aplica layouts a las pantallas que están en esta lista
