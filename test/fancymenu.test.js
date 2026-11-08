@@ -148,3 +148,10 @@ test('el logo centrado y el de las pantallas de carga respetan la proporción', 
   const s = buildScreenLayout('connect_screen', { logoSize: [400, 300] }); // alto: tope de 60
   assert.match(s, /width = 80\n  height = 60/);
 });
+
+test('un logo casi cuadrado se achica para no tapar los botones', () => {
+  const t = buildTitleLayout({ logoSize: [698, 430], fx: { splashes: 'splashes.txt' } });
+  assert.match(t, /guiheight"\}\*36\/135/); // alto tope del logo
+  assert.doesNotMatch(t, /guiheight"\}\*84\/135/); // sin tope medía 84 de 135: llegaba a los botones
+});
+
