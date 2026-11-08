@@ -466,7 +466,7 @@ function askPin(setup, then) {
     then();
   };
   $('d-ok').onclick = go;
-  for (const id of ['d-pin', 'd-pin2']) if ($(id)) $(id).onkeydown = (e) => e.key === 'Enter' && go();
+  for (const id of ['d-pin', 'd-pin2']) if ($(id)) $(id).onkeydown = (e) => { if (e.key === 'Enter') go(); };
 }
 
 $('btn-kill').onclick = () => {
@@ -572,7 +572,7 @@ function openAccountMenu() {
       if (r.ok) { closeDialog(); await afterLogin(); } else $('d-err').textContent = msg(r.error);
     };
     $('d-ok').onclick = go;
-    for (const id of ['d-nick', 'd-pin', 'd-pin2']) $(id).onkeydown = (e) => e.key === 'Enter' && go();
+    for (const id of ['d-nick', 'd-pin', 'd-pin2']) $(id).onkeydown = (e) => { if (e.key === 'Enter') go(); };
   };
   menu.classList.remove('hidden');
   sfx.open();
@@ -624,7 +624,7 @@ $('btn-add').onclick = () => {
     } else $('d-err').textContent = msg(r.error);
   };
   $('d-ok').onclick = go;
-  $('d-url').onkeydown = (e) => e.key === 'Enter' && go();
+  $('d-url').onkeydown = (e) => { if (e.key === 'Enter') go(); };
 };
 
 $('btn-folder').onclick = () => api.openFolder(curPack()?.id || null);

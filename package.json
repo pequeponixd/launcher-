@@ -1,6 +1,6 @@
 {
   "name": "cachusafio-launcher",
-  "version": "3.3.2",
+  "version": "3.3.3",
   "description": "Launcher de modpacks de Cachusafio",
   "author": "Cachusafio",
   "main": "main.js",
