@@ -124,3 +124,23 @@ test('installMenu esconde la barra del editor y configura la carga temprana de D
   assert.match(d, /early_loading_logo_height = '120'/); // 480 * 250 / 1000
   assert.match(d, /early_loading_background_texture_path = '\/config\/fancymenu\/assets\/background\.png'/);
 });
+
+test('menú al costado con botones de solo texto', () => {
+  const tex = (n) => ({ tex: [`txt-${n}.png`, `txt-${n}-hover.png`], size: [120, 20] });
+  const t = buildTitleLayout({ logoSize: [400, 300], side: { play: tex('play'), singleplayer: tex('singleplayer'), options: tex('options'), quit: tex('quit') }, fx: { player: true, island: 'island.png' } });
+  assert.match(t, /backgroundnormal = \[source:local\]\/config\/fancymenu\/assets\/txt-play\.png/);
+  assert.match(t, /\[action_type:opengui\] = select_world_screen/);
+  assert.doesNotMatch(t, /hoverlabel = »/); // el texto viene en la textura
+  assert.doesNotMatch(t, /island\.png/);
+  // logo 4:3 → 77 de ancho para 58 de alto; personaje a la derecha
+  assert.match(t, /advanced_width = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*77\/135"/);
+  assert.match(t, /advanced_posx = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiwidth"\}\*60\/100"/);
+  assert.equal((t.match(/{/g) || []).length, (t.match(/}/g) || []).length);
+});
+
+test('el logo centrado y el de las pantallas de carga respetan la proporción', () => {
+  const { buildScreenLayout } = require('../fancymenu-layout');
+  assert.match(buildTitleLayout({ logoSize: [400, 100] }), /advanced_height = \{"placeholder":"calc","values":\{"expression":"\{"placeholder":"guiheight"\}\*34\/135"/);
+  const s = buildScreenLayout('connect_screen', { logoSize: [400, 300] }); // alto: tope de 60
+  assert.match(s, /width = 80\n  height = 60/);
+});
